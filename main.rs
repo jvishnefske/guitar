@@ -1,21 +1,14 @@
-//! ESP32-S3 USB Audio DSP with Bluetooth
+//! ESP32-S3 Guitar Amp DSP Firmware
 //!
-//! This firmware implements a USB speaker that processes audio through
-//! a configurable FIR filter and streams it to Bluetooth headphones.
-//! A phone app controls filter parameters via BLE.
+//! Real-time tube amp emulation running on ESP32-S3.
 //!
-//! # Hardware Requirements
-//! - ESP32-S3 DevKit (with USB OTG support)
-//! - USB-C cable for audio input
-//! - Bluetooth headphones (A2DP sink)
-//!
-//! # Audio Pipeline
+//! # Signal Flow
 //! ```text
-//! USB Host (PC) ──USB Audio──→ ESP32-S3 ──FIR Filter──→ A2DP ──→ Headphones
-//!                                  ↑
-//!                           BLE Control
-//!                                  ↑
-//!                            Phone App
+//! USB Audio In -> DSP (Tube Amp Emulation) -> Bluetooth A2DP Out
+//!                         ^
+//!                    BLE Control
+//!                         ^
+//!                    Phone App
 //! ```
 
 #![no_std]
@@ -23,33 +16,16 @@
 
 extern crate alloc;
 
-mod bluetooth;
-mod fir_filter;
-mod protocol;
-mod usb_audio;
-
-use core::cell::RefCell;
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use embassy_executor::Spawner;
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::channel::Channel;
-use embassy_sync::signal::Signal;
-use embassy_time::{Duration, Timer};
+use esp_idf_svc::hal::prelude::Peripherals;
+use esp_idf_svc::log::EspLogger;
+use esp_idf_svc::sys as esp_idf_sys;
 
-use esp_idf_hal::prelude::*;
-use esp_idf_svc::eventloop::EspSystemEventLoop;
-use esp_idf_svc::hal::peripherals::Peripherals;
-use esp_idf_sys as _;
+use guitar_amp_dsp::signal_chain::SignalChain;
+use guitar_amp_dsp::preset::{self, AmpPreset};
 
-use heapless::spsc::Queue;
-
-use crate::bluetooth::{A2dpState, BleState, BluetoothManager};
-use crate::fir_filter::{FilterParams, FirFilter};
-use crate::protocol::{BleResponse, SystemStatus};
-use crate::usb_audio::{AudioBuffer, UsbAudioDevice, NUM_BUFFERS};
-
-// Global allocator for heap usage
+// Global allocator
 #[global_allocator]
 static ALLOCATOR: esp_alloc::EspHeap = esp_alloc::EspHeap::empty();
 
@@ -62,12 +38,6 @@ fn init_heap() {
     }
 }
 
-/// Audio sample buffer queue (USB → DSP)
-static mut USB_RX_QUEUE: Queue<AudioBuffer, NUM_BUFFERS> = Queue::new();
-
-/// Filter parameter update channel
-static FILTER_UPDATE: Signal<CriticalSectionRawMutex, FilterParams> = Signal::new();
-
 /// System shutdown flag
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
@@ -76,180 +46,142 @@ static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 fn main() -> ! {
     // Initialize ESP-IDF
     esp_idf_svc::sys::link_patches();
-    esp_idf_svc::log::EspLogger::initialize_default();
-    
+    EspLogger::initialize_default();
+
     init_heap();
-    
+
     log::info!("===============================================");
-    log::info!("  ESP32-S3 USB Audio DSP with Bluetooth");
+    log::info!("  ESP32-S3 Guitar Amp DSP");
     log::info!("===============================================");
     log::info!("Firmware version: {}", env!("CARGO_PKG_VERSION"));
-    
-    // Get peripherals
-    let peripherals = Peripherals::take().expect("Failed to take peripherals");
-    
-    // Initialize system event loop
-    let _sysloop = EspSystemEventLoop::take().expect("Failed to take event loop");
-    
-    // Run the async executor
-    let executor = embassy_executor::Executor::new();
-    let executor = unsafe { &*(&executor as *const _) };
-    
-    executor.run(|spawner| {
-        spawner.spawn(main_task()).ok();
-    })
-}
 
-/// Main application task
-#[embassy_executor::task]
-async fn main_task() {
-    log::info!("Starting main task...");
-    
-    // Initialize components
-    let mut filter = FirFilter::new();
-    
-    // Initialize USB Audio
-    let usb_queue = unsafe { &mut USB_RX_QUEUE };
-    let mut usb_audio = UsbAudioDevice::new(usb_queue);
-    if let Err(e) = usb_audio.init() {
-        log::error!("USB Audio init failed: {}", e);
+    // Get peripherals
+    let _peripherals = Peripherals::take().expect("Failed to take peripherals");
+
+    // Print system info
+    print_system_info();
+
+    // Initialize DSP signal chain at 48kHz
+    let sample_rate = 48000.0;
+    let mut signal_chain = SignalChain::new(sample_rate);
+
+    // Load default preset (Clean Twin)
+    let default_preset = preset::CLEAN_TWIN;
+    signal_chain.load_preset(&default_preset);
+    log::info!("Loaded preset: {}", default_preset.name);
+
+    // List available presets
+    log::info!("Available presets:");
+    for (i, preset) in preset::all_presets().iter().enumerate() {
+        log::info!("  {}: {} ({} stages)", i, preset.name, preset.num_stages);
     }
-    
-    // Initialize Bluetooth
-    let mut bt_manager = BluetoothManager::new();
-    if let Err(e) = bt_manager.init() {
-        log::error!("Bluetooth init failed: {}", e);
-    }
-    
-    log::info!("All components initialized, entering main loop");
-    
-    // Main processing loop
+
+    // Demo: Process some test samples
+    demo_dsp_processing(&mut signal_chain);
+
+    log::info!("DSP system ready!");
+    log::info!("Note: USB Audio and Bluetooth modules not yet implemented");
+
+    // Main loop (placeholder - would handle real audio)
     loop {
-        // Check for shutdown
         if SHUTDOWN.load(Ordering::Relaxed) {
             log::info!("Shutdown requested");
             break;
         }
-        
-        // Check for filter parameter updates from BLE
-        if let Some(params) = bt_manager.take_pending_params() {
-            log::info!("Updating filter: {:?}", params.preset);
-            filter.update_params(&params);
-        }
-        
-        // Process audio if available
-        if let Some(mut buffer) = usb_audio.get_audio_buffer() {
-            // Apply volume
-            usb_audio.apply_volume(&mut buffer);
-            
-            // Apply FIR filter
-            filter.process_stereo(&mut buffer.samples[..buffer.valid_samples]);
-            
-            // Send to Bluetooth headphones
-            if bt_manager.is_streaming() {
-                if let Err(e) = bt_manager.send_audio(&buffer.samples[..buffer.valid_samples]) {
-                    log::warn!("BT send error: {:?}", e);
-                }
-            }
-        }
-        
-        // Yield to other tasks
-        Timer::after(Duration::from_micros(100)).await;
-    }
-    
-    log::info!("Main task exiting");
-}
 
-/// Status reporting task - sends periodic updates to phone app
-#[embassy_executor::task]
-async fn status_task(bt_manager: &'static RefCell<BluetoothManager>) {
+        // In a real implementation:
+        // 1. Get audio from USB
+        // 2. Process through signal_chain
+        // 3. Send to Bluetooth
+
+        // For now, just idle
+        unsafe {
+            esp_idf_sys::vTaskDelay(100);
+        }
+    }
+
+    log::info!("Main loop exiting");
+
+    // Should not reach here
     loop {
-        Timer::after(Duration::from_secs(1)).await;
-        
-        // Build status message
-        let bt_status = bt_manager.borrow().get_status();
-        let status = SystemStatus {
-            usb_connected: true, // TODO: Get from USB driver
-            usb_streaming: true,
-            usb_buffer_level: 50,
-            headphone_connected: bt_status.headphone_connected,
-            headphone_streaming: bt_status.streaming,
-            headphone_name: heapless::String::new(),
-            filter_preset: crate::fir_filter::FilterPreset::Bypass,
-            filter_taps: 1,
-            volume: bt_status.volume,
-            muted: false,
-            sample_rate: 48000,
-            latency_ms: 50,
-            underruns: 0,
-            overruns: 0,
-        };
-        
-        // Send to connected phone (if any)
-        // This would use the BLE notify mechanism
-        let _ = status; // TODO: Send via BLE notification
+        unsafe {
+            esp_idf_sys::vTaskDelay(1000);
+        }
     }
 }
 
-/// Panic handler
-#[panic_handler]
-fn panic(info: &core::panic::PanicInfo) -> ! {
-    log::error!("PANIC: {}", info);
-    
-    // Reset the device after a short delay
-    unsafe {
-        esp_idf_sys::esp_restart();
+/// Demo DSP processing with test signal
+fn demo_dsp_processing(chain: &mut SignalChain) {
+    log::info!("Running DSP demo...");
+
+    // Create a simple test signal (440Hz sine wave, 1ms at 48kHz = 48 samples)
+    let mut test_buffer = [0.0f32; 48];
+    for (i, sample) in test_buffer.iter_mut().enumerate() {
+        let t = i as f32 / 48000.0;
+        *sample = libm::sinf(2.0 * core::f32::consts::PI * 440.0 * t) * 0.5;
     }
+
+    // Process through DSP
+    let input_rms = rms(&test_buffer);
+    chain.process_buffer(&mut test_buffer);
+    let output_rms = rms(&test_buffer);
+
+    log::info!("  Input RMS: {:.4}", input_rms);
+    log::info!("  Output RMS: {:.4}", output_rms);
+    log::info!("  Gain: {:.2} dB", 20.0 * libm::log10f(output_rms / input_rms.max(0.0001)));
+
+    // Test all presets
+    log::info!("Testing all presets:");
+    for preset in preset::all_presets() {
+        chain.load_preset(preset);
+
+        // Reset test signal
+        for (i, sample) in test_buffer.iter_mut().enumerate() {
+            let t = i as f32 / 48000.0;
+            *sample = libm::sinf(2.0 * core::f32::consts::PI * 440.0 * t) * 0.5;
+        }
+
+        chain.process_buffer(&mut test_buffer);
+        let rms_out = rms(&test_buffer);
+        log::info!("  {}: RMS={:.4}", preset.name, rms_out);
+    }
+
+    log::info!("DSP demo complete!");
 }
 
-/// Configuration constants
-pub mod config {
-    /// Audio processing buffer size in milliseconds
-    pub const BUFFER_MS: u32 = 10;
-    
-    /// Target audio latency in milliseconds
-    pub const TARGET_LATENCY_MS: u32 = 50;
-    
-    /// Maximum acceptable latency before dropping frames
-    pub const MAX_LATENCY_MS: u32 = 100;
-    
-    /// BLE advertising interval (ms)
-    pub const BLE_ADV_INTERVAL_MS: u32 = 100;
-    
-    /// A2DP reconnection timeout (seconds)
-    pub const A2DP_RECONNECT_TIMEOUT_S: u32 = 30;
+/// Calculate RMS of a buffer
+fn rms(buffer: &[f32]) -> f32 {
+    let sum_sq: f32 = buffer.iter().map(|x| x * x).sum();
+    libm::sqrtf(sum_sq / buffer.len() as f32)
 }
 
-/// Runtime statistics for monitoring
-#[derive(Debug, Default)]
-pub struct RuntimeStats {
-    /// Total audio frames processed
-    pub frames_processed: u64,
-    /// USB buffer underruns
-    pub usb_underruns: u32,
-    /// USB buffer overruns
-    pub usb_overruns: u32,
-    /// Bluetooth buffer underruns
-    pub bt_underruns: u32,
-    /// Maximum observed latency (us)
-    pub max_latency_us: u32,
-    /// CPU usage estimate (0-100)
-    pub cpu_usage: u8,
-}
-
-/// Print system info on startup
+/// Print system information
 fn print_system_info() {
     log::info!("System Information:");
     log::info!("  Chip: ESP32-S3");
-    
+
     unsafe {
         let info = esp_idf_sys::esp_get_idf_version();
         if !info.is_null() {
             let version = core::ffi::CStr::from_ptr(info);
             log::info!("  ESP-IDF: {:?}", version);
         }
-        
+
         log::info!("  Free heap: {} bytes", esp_idf_sys::esp_get_free_heap_size());
-        log::info!("  Min free heap: {} bytes", esp_idf_sys::esp_get_minimum_free_heap_size());
     }
+}
+
+/// Panic handler - reset device
+#[panic_handler]
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    log::error!("PANIC: {}", info);
+
+    // Short delay then restart
+    unsafe {
+        esp_idf_sys::vTaskDelay(100);
+        esp_idf_sys::esp_restart();
+    }
+
+    // Never reaches here
+    loop {}
 }

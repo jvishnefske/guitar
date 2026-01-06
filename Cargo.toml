@@ -2,16 +2,47 @@
 name = "guitar-amp-dsp"
 version = "0.1.0"
 edition = "2021"
+resolver = "2"
 
 [lib]
-# Library crate for DSP modules
+path = "src/lib.rs"
+
+[[bin]]
+name = "guitar-amp-esp32"
+path = "main.rs"
+required-features = ["esp32"]
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+
+[profile.dev]
+debug = true
+opt-level = "z"
 
 [dependencies]
-libm = "0.2"  # no_std math functions
+libm = "0.2"
+
+# ESP-IDF dependencies (for binary only)
+esp-idf-svc = { version = "0.50", optional = true, default-features = false }
+esp-idf-hal = { version = "0.45", optional = true }
+esp-idf-sys = { version = "0.36", optional = true }
+esp-alloc = { version = "0.5", optional = true }
+log = { version = "0.4", optional = true }
 
 [dev-dependencies]
-approx = "0.5"  # Float comparison in tests
+approx = "0.5"
+
+[build-dependencies]
+embuild = { version = "0.32", features = ["espidf"] }
 
 [features]
 default = ["std"]
 std = []
+esp32 = [
+    "dep:esp-idf-svc",
+    "dep:esp-idf-hal",
+    "dep:esp-idf-sys",
+    "dep:esp-alloc",
+    "dep:log",
+]
