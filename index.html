@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Audio DSP Control</title>
+    <style>
+        :root {
+            --bg: #1a1a2e;
+            --card: #16213e;
+            --accent: #0f3460;
+            --highlight: #e94560;
+            --text: #eee;
+            --text-dim: #888;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 1.5rem;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: var(--text-dim);
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+        }
+        
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        
+        .card h2 {
+            font-size: 1rem;
+            margin-bottom: 16px;
+            color: var(--highlight);
+        }
+        
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--accent);
+        }
+        
+        .status-row:last-child {
+            border-bottom: none;
+        }
+        
+        .status-label {
+            color: var(--text-dim);
+        }
+        
+        .status-value {
+            font-weight: 600;
+        }
+        
+        .status-value.connected {
+            color: #4ade80;
+        }
+        
+        .status-value.disconnected {
+            color: var(--highlight);
+        }
+        
+        button {
+            background: var(--highlight);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            width: 100%;
+            transition: opacity 0.2s;
+        }
+        
+        button:hover {
+            opacity: 0.9;
+        }
+        
+        button:disabled {
+            background: var(--accent);
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: var(--accent);
+            margin-top: 8px;
+        }
+        
+        select, input[type="range"] {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--accent);
+            background: var(--bg);
+            color: var(--text);
+            font-size: 1rem;
+            margin-bottom: 12px;
+        }
+        
+        input[type="range"] {
+            -webkit-appearance: none;
+            height: 8px;
+            padding: 0;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: var(--highlight);
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .slider-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+        
+        .slider-value {
+            font-weight: 600;
+            color: var(--highlight);
+        }
+        
+        .filter-params {
+            display: grid;
+            gap: 12px;
+            margin-top: 12px;
+        }
+        
+        .param-group label {
+            display: block;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-bottom: 4px;
+        }
+        
+        .log {
+            background: var(--bg);
+            border-radius: 8px;
+            padding: 12px;
+            height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+        
+        .log-entry {
+            margin-bottom: 4px;
+        }
+        
+        .log-entry.error {
+            color: var(--highlight);
+        }
+        
+        .log-entry.success {
+            color: #4ade80;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎧 ESP32 Audio DSP</h1>
+        <p class="subtitle">Web BLE Control Interface</p>
+        
+        <!-- Connection -->
+        <div class="card">
+            <h2>📡 Connection</h2>
+            <div class="status-row">
+                <span class="status-label">BLE Status</span>
+                <span id="bleStatus" class="status-value disconnected">Disconnected</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Device</span>
+                <span id="deviceName" class="status-value">--</span>
+            </div>
+            <button id="connectBtn" onclick="connectBLE()">Connect to ESP32</button>
+            <button id="disconnectBtn" class="btn-secondary hidden" onclick="disconnectBLE()">Disconnect</button>
+        </div>
+        
+        <!-- Status -->
+        <div id="statusCard" class="card hidden">
+            <h2>📊 Status</h2>
+            <div class="status-row">
+                <span class="status-label">USB Audio</span>
+                <span id="usbStatus" class="status-value">--</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Headphones</span>
+                <span id="headphoneStatus" class="status-value">--</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Streaming</span>
+                <span id="streamingStatus" class="status-value">--</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Latency</span>
+                <span id="latencyStatus" class="status-value">--</span>
+            </div>
+        </div>
+        
+        <!-- Volume -->
+        <div id="volumeCard" class="card hidden">
+            <h2>🔊 Volume</h2>
+            <div class="slider-row">
+                <span>Volume</span>
+                <span id="volumeValue" class="slider-value">80%</span>
+            </div>
+            <input type="range" id="volumeSlider" min="0" max="100" value="80" oninput="updateVolume(this.value)">
+        </div>
+        
+        <!-- Filter -->
+        <div id="filterCard" class="card hidden">
+            <h2>🎚️ Filter</h2>
+            <select id="filterPreset" onchange="updateFilterPreset(this.value)">
+                <option value="bypass">Bypass (No Filter)</option>
+                <option value="lowpass">Low-Pass Filter</option>
+                <option value="highpass">High-Pass Filter</option>
+                <option value="bandpass">Band-Pass Filter</option>
+                <option value="parametric">Parametric EQ</option>
+            </select>
+            
+            <div id="lowpassParams" class="filter-params hidden">
+                <div class="param-group">
+                    <label>Cutoff Frequency (Hz)</label>
+                    <div class="slider-row">
+                        <span>20</span>
+                        <span id="lpCutoffValue" class="slider-value">5000 Hz</span>
+                        <span>20000</span>
+                    </div>
+                    <input type="range" id="lpCutoff" min="20" max="20000" value="5000" oninput="updateLpCutoff(this.value)">
+                </div>
+            </div>
+            
+            <div id="highpassParams" class="filter-params hidden">
+                <div class="param-group">
+                    <label>Cutoff Frequency (Hz)</label>
+                    <div class="slider-row">
+                        <span>20</span>
+                        <span id="hpCutoffValue" class="slider-value">200 Hz</span>
+                        <span>20000</span>
+                    </div>
+                    <input type="range" id="hpCutoff" min="20" max="20000" value="200" oninput="updateHpCutoff(this.value)">
+                </div>
+            </div>
+            
+            <div id="bandpassParams" class="filter-params hidden">
+                <div class="param-group">
+                    <label>Low Frequency (Hz)</label>
+                    <input type="range" id="bpLow" min="20" max="20000" value="200" oninput="updateBpLow(this.value)">
+                </div>
+                <div class="param-group">
+                    <label>High Frequency (Hz)</label>
+                    <input type="range" id="bpHigh" min="20" max="20000" value="5000" oninput="updateBpHigh(this.value)">
+                </div>
+            </div>
+            
+            <div id="parametricParams" class="filter-params hidden">
+                <div class="param-group">
+                    <label>Center Frequency (Hz)</label>
+                    <input type="range" id="peqFreq" min="20" max="20000" value="1000" oninput="updatePeqFreq(this.value)">
+                </div>
+                <div class="param-group">
+                    <label>Gain (dB)</label>
+                    <input type="range" id="peqGain" min="-12" max="12" value="0" oninput="updatePeqGain(this.value)">
+                </div>
+                <div class="param-group">
+                    <label>Q Factor</label>
+                    <input type="range" id="peqQ" min="0.1" max="10" step="0.1" value="1" oninput="updatePeqQ(this.value)">
+                </div>
+            </div>
+            
+            <button onclick="applyFilter()">Apply Filter</button>
+        </div>
+        
+        <!-- Bluetooth Headphones -->
+        <div id="btCard" class="card hidden">
+            <h2>🎧 Bluetooth Headphones</h2>
+            <button onclick="startDiscovery()">Scan for Devices</button>
+            <div id="deviceList" style="margin-top: 12px;"></div>
+        </div>
+        
+        <!-- Log -->
+        <div class="card">
+            <h2>📝 Log</h2>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // BLE UUIDs (must match ESP32 firmware)
+        const SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0';
+        const CONTROL_CHAR_UUID = '12345678-1234-5678-1234-56789abcdef1';
+        const STATUS_CHAR_UUID = '12345678-1234-5678-1234-56789abcdef2';
+        
+        // State
+        let device = null;
+        let server = null;
+        let controlChar = null;
+        let statusChar = null;
+        
+        // Logging
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        // BLE Connection
+        async function connectBLE() {
+            try {
+                log('Requesting BLE device...');
+                
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }],
+                    optionalServices: [SERVICE_UUID]
+                });
+                
+                log(`Found device: ${device.name}`);
+                document.getElementById('deviceName').textContent = device.name;
+                
+                device.addEventListener('gattserverdisconnected', onDisconnected);
+                
+                log('Connecting to GATT server...');
+                server = await device.gatt.connect();
+                
+                log('Getting service...');
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                
+                log('Getting characteristics...');
+                controlChar = await service.getCharacteristic(CONTROL_CHAR_UUID);
+                statusChar = await service.getCharacteristic(STATUS_CHAR_UUID);
+                
+                // Subscribe to status notifications
+                await statusChar.startNotifications();
+                statusChar.addEventListener('characteristicvaluechanged', onStatusUpdate);
+                
+                onConnected();
+                log('Connected!', 'success');
+                
+                // Request initial status
+                await sendCommand({ type: 'GetStatus' });
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+        
+        function onConnected() {
+            document.getElementById('bleStatus').textContent = 'Connected';
+            document.getElementById('bleStatus').className = 'status-value connected';
+            document.getElementById('connectBtn').classList.add('hidden');
+            document.getElementById('disconnectBtn').classList.remove('hidden');
+            document.getElementById('statusCard').classList.remove('hidden');
+            document.getElementById('volumeCard').classList.remove('hidden');
+            document.getElementById('filterCard').classList.remove('hidden');
+            document.getElementById('btCard').classList.remove('hidden');
+        }
+        
+        function onDisconnected() {
+            log('Disconnected', 'error');
+            document.getElementById('bleStatus').textContent = 'Disconnected';
+            document.getElementById('bleStatus').className = 'status-value disconnected';
+            document.getElementById('deviceName').textContent = '--';
+            document.getElementById('connectBtn').classList.remove('hidden');
+            document.getElementById('disconnectBtn').classList.add('hidden');
+            document.getElementById('statusCard').classList.add('hidden');
+            document.getElementById('volumeCard').classList.add('hidden');
+            document.getElementById('filterCard').classList.add('hidden');
+            document.getElementById('btCard').classList.add('hidden');
+        }
+        
+        async function disconnectBLE() {
+            if (device && device.gatt.connected) {
+                device.gatt.disconnect();
+            }
+        }
+        
+        // Status updates
+        function onStatusUpdate(event) {
+            const value = event.target.value;
+            const decoder = new TextDecoder();
+            try {
+                const status = JSON.parse(decoder.decode(value));
+                updateStatusDisplay(status);
+            } catch (e) {
+                // Binary format - would need postcard decoder
+                log('Received status update (binary)', 'info');
+            }
+        }
+        
+        function updateStatusDisplay(status) {
+            document.getElementById('usbStatus').textContent = status.usb_connected ? 'Connected' : 'Disconnected';
+            document.getElementById('headphoneStatus').textContent = status.headphone_connected ? 'Connected' : 'Disconnected';
+            document.getElementById('streamingStatus').textContent = status.headphone_streaming ? 'Streaming' : 'Idle';
+            document.getElementById('latencyStatus').textContent = `${status.latency_ms || '--'} ms`;
+        }
+        
+        // Send command to ESP32
+        async function sendCommand(cmd) {
+            if (!controlChar) {
+                log('Not connected', 'error');
+                return;
+            }
+            
+            try {
+                // Simple JSON encoding (in production, use postcard/binary)
+                const encoder = new TextEncoder();
+                const data = encoder.encode(JSON.stringify(cmd));
+                await controlChar.writeValue(data);
+                log(`Sent: ${cmd.type}`, 'success');
+            } catch (error) {
+                log(`Send error: ${error.message}`, 'error');
+            }
+        }
+        
+        // Volume control
+        function updateVolume(value) {
+            document.getElementById('volumeValue').textContent = `${value}%`;
+            sendCommand({ type: 'SetVolume', value: parseInt(value) });
+        }
+        
+        // Filter controls
+        function updateFilterPreset(preset) {
+            // Hide all param sections
+            document.getElementById('lowpassParams').classList.add('hidden');
+            document.getElementById('highpassParams').classList.add('hidden');
+            document.getElementById('bandpassParams').classList.add('hidden');
+            document.getElementById('parametricParams').classList.add('hidden');
+            
+            // Show relevant params
+            switch (preset) {
+                case 'lowpass':
+                    document.getElementById('lowpassParams').classList.remove('hidden');
+                    break;
+                case 'highpass':
+                    document.getElementById('highpassParams').classList.remove('hidden');
+                    break;
+                case 'bandpass':
+                    document.getElementById('bandpassParams').classList.remove('hidden');
+                    break;
+                case 'parametric':
+                    document.getElementById('parametricParams').classList.remove('hidden');
+                    break;
+            }
+        }
+        
+        function updateLpCutoff(value) {
+            document.getElementById('lpCutoffValue').textContent = `${value} Hz`;
+        }
+        
+        function updateHpCutoff(value) {
+            document.getElementById('hpCutoffValue').textContent = `${value} Hz`;
+        }
+        
+        function updateBpLow(value) {}
+        function updateBpHigh(value) {}
+        function updatePeqFreq(value) {}
+        function updatePeqGain(value) {}
+        function updatePeqQ(value) {}
+        
+        function applyFilter() {
+            const preset = document.getElementById('filterPreset').value;
+            let cmd = { type: 'SetFilterPreset' };
+            
+            switch (preset) {
+                case 'bypass':
+                    cmd.preset = { type: 'Bypass' };
+                    break;
+                case 'lowpass':
+                    cmd.preset = { type: 'LowPass', cutoff_hz: parseInt(document.getElementById('lpCutoff').value) };
+                    break;
+                case 'highpass':
+                    cmd.preset = { type: 'HighPass', cutoff_hz: parseInt(document.getElementById('hpCutoff').value) };
+                    break;
+                case 'bandpass':
+                    cmd.preset = { 
+                        type: 'BandPass', 
+                        low_hz: parseInt(document.getElementById('bpLow').value),
+                        high_hz: parseInt(document.getElementById('bpHigh').value)
+                    };
+                    break;
+                case 'parametric':
+                    cmd.preset = {
+                        type: 'Parametric',
+                        center_hz: parseInt(document.getElementById('peqFreq').value),
+                        gain_db: parseFloat(document.getElementById('peqGain').value),
+                        q: parseFloat(document.getElementById('peqQ').value)
+                    };
+                    break;
+            }
+            
+            sendCommand(cmd);
+        }
+        
+        // Bluetooth headphone discovery
+        async function startDiscovery() {
+            await sendCommand({ type: 'StartDiscovery' });
+            document.getElementById('deviceList').innerHTML = '<p style="color: var(--text-dim);">Scanning...</p>';
+        }
+        
+        // Check Web Bluetooth support
+        if (!navigator.bluetooth) {
+            log('Web Bluetooth not supported! Use Chrome on desktop or Android.', 'error');
+            document.getElementById('connectBtn').disabled = true;
+        } else {
+            log('Web Bluetooth available. Click Connect to start.');
+        }
+    </script>
+</body>
+</html>

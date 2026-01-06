@@ -1,0 +1,17 @@
+[package]
+name = "guitar-amp-dsp"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+# Library crate for DSP modules
+
+[dependencies]
+libm = "0.2"  # no_std math functions
+
+[dev-dependencies]
+approx = "0.5"  # Float comparison in tests
+
+[features]
+default = ["std"]
+std = []
