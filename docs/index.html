@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parametric Stratocaster CAD Generator</title>
+    <style>
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-card: #1f2937;
+            --accent: #e94560;
+            --accent-hover: #ff6b6b;
+            --text-primary: #eee;
+            --text-secondary: #9ca3af;
+            --border: #374151;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        
+        .app-container {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            min-height: 100vh;
+        }
+        
+        @media (max-width: 1024px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            background: var(--bg-secondary);
+            padding: 1.5rem;
+            overflow-y: auto;
+            max-height: 100vh;
+            border-right: 1px solid var(--border);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .logo svg {
+            width: 32px;
+            height: 32px;
+            fill: var(--accent);
+        }
+        
+        .logo h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 1rem;
+        }
+        
+        .section-header h2 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--accent);
+        }
+        
+        .section-header .toggle {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            transition: transform 0.2s;
+        }
+        
+        .section.collapsed .section-content {
+            display: none;
+        }
+        
+        .section.collapsed .toggle {
+            transform: rotate(-90deg);
+        }
+        
+        .param-group {
+            margin-bottom: 1rem;
+        }
+        
+        .param-row {
+            display: grid;
+            grid-template-columns: 1fr 100px;
+            gap: 0.75rem;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        
+        .param-row label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        .param-row input[type="number"],
+        .param-row select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            text-align: right;
+        }
+        
+        .param-row input:focus,
+        .param-row select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        
+        .unit {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-left: 0.25rem;
+        }
+        
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .checkbox-row input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+        }
+        
+        .checkbox-row label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+        
+        /* Export Section */
+        .export-section {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .export-section h3 {
+            font-size: 0.875rem;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+        }
+        
+        .export-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        
+        .btn {
+            padding: 0.625rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--accent);
+        }
+        
+        .btn-full {
+            grid-column: 1 / -1;
+        }
+        
+        /* Preview Area */
+        .preview-area {
+            padding: 1.5rem;
+            overflow: auto;
+            background: #0d1117;
+        }
+        
+        .preview-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .tab-btn {
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+        
+        .tab-btn:hover {
+            border-color: var(--accent);
+        }
+        
+        .tab-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        
+        .preview-container {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            min-height: 500px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .preview-container svg {
+            max-width: 100%;
+            max-height: 80vh;
+        }
+        
+        /* Fret Table */
+        .fret-table {
+            background: var(--bg-card);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .fret-table h3 {
+            font-size: 0.875rem;
+            margin-bottom: 0.75rem;
+            color: var(--accent);
+        }
+        
+        .fret-table table {
+            width: 100%;
+            font-size: 0.8rem;
+            border-collapse: collapse;
+        }
+        
+        .fret-table th,
+        .fret-table td {
+            padding: 0.375rem 0.5rem;
+            text-align: right;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .fret-table th {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        
+        .fret-table tr:nth-child(12) {
+            background: rgba(233, 69, 96, 0.1);
+        }
+        
+        /* Info tooltip */
+        .info-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border-radius: 4px;
+            margin-left: 0.5rem;
+        }
+        
+        .warning-badge {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        /* Color Legend */
+        .color-legend {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            font-size: 0.75rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .legend-swatch {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            border: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <aside class="sidebar" id="sidebar">
+            <div class="logo">
+                <svg viewBox="0 0 24 24"><path d="M19.59 3H4.41A1.41 1.41 0 0 0 3 4.41v15.18A1.41 1.41 0 0 0 4.41 21h15.18A1.41 1.41 0 0 0 21 19.59V4.41A1.41 1.41 0 0 0 19.59 3zM12 18a6 6 0 1 1 6-6 6 6 0 0 1-6 6zm0-10a4 4 0 1 0 4 4 4 4 0 0 0-4-4z"/></svg>
+                <h1>Strat CAD</h1>
+            </div>
+            
+            <!-- Parameters will be injected here by JavaScript -->
+        </aside>
+        
+        <main class="preview-area" id="preview-area">
+            <div class="preview-tabs" id="preview-tabs"></div>
+            <div class="preview-container" id="preview-container"></div>
+        </main>
+    </div>
+
+    <script>
+    // ============================================================
+    // PARAMETRIC STRATOCASTER CAD GENERATOR
+    // Pure client-side SVG generation for GitHub Pages hosting
+    // ============================================================
+
+    const TREMOLO_SPACING = {
+        VINTAGE: { value: 52.5, label: 'Vintage (2 1/16")' },
+        MODERN: { value: 55.5625, label: 'Modern (2 3/16")' },
+        MODERN_METRIC: { value: 56.0, label: 'Modern Metric (56mm)' }
+    };
+
+    const COLORS = {
+        cut_through: '#FF0000',
+        engrave_deep: '#0000FF',
+        engrave_shallow: '#00FF00',
+        score: '#FF00FF',
+        reference: '#888888',
+        centerline: '#00FFFF'
+    };
+
+    // Default specification (immutable reference)
+    const DEFAULT_SPEC = {
+        neck: {
+            nut_thickness: 20.0,
+            heel_thickness: 25.0,
+            nut_width: 43.0,
+            heel_width: 56.0,
+            profile_shape: 'C',
+            compound_radius: false,
+            fretboard_radius_nut: 241.3,
+            fretboard_radius_heel: 406.4
+        },
+        fretboard: {
+            scale_length: 647.7,
+            num_frets: 22,
+            fret_width: 2.4,
+            fret_slot_depth: 1.5,
+            side_dot_positions: [3, 5, 7, 9, 12, 15, 17, 19, 21],
+            double_dot_positions: [12],
+            extension_beyond_last_fret: 12.0
+        },
+        body: {
+            thickness: 44.0,
+            width: 318.0,
+            length: 400.0,
+            belly_cut: true,
+            forearm_contour: true,
+            neck_pickup_length: 85.0,
+            neck_pickup_width: 17.0,
+            pickup_routing_depth: 18.0,
+            control_cavity_depth: 35.0,
+            tremolo_spacing: 'MODERN',
+            neck_pocket_length: 76.2,
+            neck_pocket_width: 56.0,
+            neck_pocket_depth: 16.0
+        },
+        headstock: {
+            length: 178.0,
+            width: 90.0,
+            thickness: 14.0,
+            tuner_hole_diameter: 10.0,
+            angle: 0.0
+        }
+    };
+
+    // Current specification (mutable, loaded from localStorage or defaults)
+    let spec = JSON.parse(JSON.stringify(DEFAULT_SPEC));
+
+    // Options for rendering
+    let renderOptions = {
+        include_fret_slots: true,
+        include_inlays: true,
+        body_view: 'top'
+    };
+
+    // Current active tab
+    let activeTab = 'fretboard';
+
+    // localStorage keys
+    const STORAGE_KEY_SPEC = 'stratocaster-cad-spec';
+    const STORAGE_KEY_PRESETS = 'stratocaster-cad-presets';
+    const STORAGE_KEY_OPTIONS = 'stratocaster-cad-options';
+
+    // ============================================================
+    // LOCAL STORAGE FUNCTIONS
+    // ============================================================
+
+    function saveToLocalStorage() {
+        try {
+            localStorage.setItem(STORAGE_KEY_SPEC, JSON.stringify(spec));
+            localStorage.setItem(STORAGE_KEY_OPTIONS, JSON.stringify(renderOptions));
+        } catch (e) {
+            console.warn('Failed to save to localStorage:', e);
+        }
+    }
+
+    function loadFromLocalStorage() {
+        try {
+            const savedSpec = localStorage.getItem(STORAGE_KEY_SPEC);
+            if (savedSpec) {
+                const parsed = JSON.parse(savedSpec);
+                spec = deepMerge(JSON.parse(JSON.stringify(DEFAULT_SPEC)), parsed);
+            }
+            const savedOptions = localStorage.getItem(STORAGE_KEY_OPTIONS);
+            if (savedOptions) {
+                renderOptions = JSON.parse(savedOptions);
+            }
+        } catch (e) {
+            console.warn('Failed to load from localStorage:', e);
+        }
+    }
+
+    function deepMerge(target, source) {
+        for (const key in source) {
+            if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+                if (!target[key]) target[key] = {};
+                deepMerge(target[key], source[key]);
+            } else {
+                target[key] = source[key];
+            }
+        }
+        return target;
+    }
+
+    function getPresetList() {
+        try {
+            const presets = localStorage.getItem(STORAGE_KEY_PRESETS);
+            return presets ? JSON.parse(presets) : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function savePreset(name) {
+        if (!name || !name.trim()) return false;
+        try {
+            const presets = getPresetList();
+            const existing = presets.findIndex(p => p.name === name);
+            const preset = { name: name.trim(), spec: JSON.parse(JSON.stringify(spec)), options: JSON.parse(JSON.stringify(renderOptions)) };
+            if (existing >= 0) {
+                presets[existing] = preset;
+            } else {
+                presets.push(preset);
+            }
+            localStorage.setItem(STORAGE_KEY_PRESETS, JSON.stringify(presets));
+            return true;
+        } catch (e) {
+            console.warn('Failed to save preset:', e);
+            return false;
+        }
+    }
+
+    function loadPreset(name) {
+        try {
+            const presets = getPresetList();
+            const preset = presets.find(p => p.name === name);
+            if (preset) {
+                spec = deepMerge(JSON.parse(JSON.stringify(DEFAULT_SPEC)), preset.spec);
+                if (preset.options) {
+                    renderOptions = preset.options;
+                }
+                saveToLocalStorage();
+                return true;
+            }
+            return false;
+        } catch (e) {
+            console.warn('Failed to load preset:', e);
+            return false;
+        }
+    }
+
+    function deletePreset(name) {
+        try {
+            const presets = getPresetList();
+            const filtered = presets.filter(p => p.name !== name);
+            localStorage.setItem(STORAGE_KEY_PRESETS, JSON.stringify(filtered));
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function resetToDefaults() {
+        spec = JSON.parse(JSON.stringify(DEFAULT_SPEC));
+        renderOptions = { include_fret_slots: true, include_inlays: true, body_view: 'top' };
+        saveToLocalStorage();
+    }
+
+    // ============================================================
+    // MATH UTILITIES
+    // ============================================================
+
+    function fretPosition(scaleLength, fretNumber) {
+        if (fretNumber < 0) throw new Error('Fret number must be non-negative');
+        if (fretNumber === 0) return 0.0;
+        const ratio = Math.pow(2.0, fretNumber / 12.0);
+        return Math.round((scaleLength * (1.0 - 1.0 / ratio)) * 100) / 100;
+    }
+
+    function allFretPositions(scaleLength, numFrets) {
+        const positions = [];
+        for (let n = 0; n <= numFrets; n++) {
+            positions.push({ fret: n, position: fretPosition(scaleLength, n) });
+        }
+        return positions;
+    }
+
+    // ============================================================
+    // SVG PATH BUILDER
+    // ============================================================
+
+    class SVGPath {
+        constructor() {
+            this.commands = [];
+        }
+
+        moveTo(x, y) {
+            this.commands.push(`M ${x.toFixed(3)} ${y.toFixed(3)}`);
+            return this;
+        }
+
+        lineTo(x, y) {
+            this.commands.push(`L ${x.toFixed(3)} ${y.toFixed(3)}`);
+            return this;
+        }
+
+        curveTo(x1, y1, x2, y2, x, y) {
+            this.commands.push(`C ${x1.toFixed(3)} ${y1.toFixed(3)} ${x2.toFixed(3)} ${y2.toFixed(3)} ${x.toFixed(3)} ${y.toFixed(3)}`);
+            return this;
+        }
+
+        arcTo(rx, ry, rotation, largeArc, sweep, x, y) {
+            const la = largeArc ? 1 : 0;
+            const sw = sweep ? 1 : 0;
+            this.commands.push(`A ${rx.toFixed(3)} ${ry.toFixed(3)} ${rotation.toFixed(1)} ${la} ${sw} ${x.toFixed(3)} ${y.toFixed(3)}`);
+            return this;
+        }
+
+        close() {
+            this.commands.push('Z');
+            return this;
+        }
+
+        build() {
+            return this.commands.join(' ');
+        }
+    }
+
+    // ============================================================
+    // SVG GENERATORS
+    // ============================================================
+
+    function generateFretboardSVG() {
+        const fb = spec.fretboard;
+        const neck = spec.neck;
+        const frets = allFretPositions(fb.scale_length, fb.num_frets);
+        const fbLength = frets[frets.length - 1].position + fb.extension_beyond_last_fret;
+
+        function widthAtDistance(dist) {
+            const t = dist / fbLength;
+            return neck.nut_width + t * (neck.heel_width - neck.nut_width);
+        }
+
+        const margin = 20.0;
+        const svgWidth = fbLength + 2 * margin;
+        const svgHeight = neck.heel_width + 2 * margin;
+
+        let svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+     width="${svgWidth.toFixed(2)}mm" height="${svgHeight.toFixed(2)}mm"
+     viewBox="0 0 ${svgWidth.toFixed(2)} ${svgHeight.toFixed(2)}">
+  <title>Stratocaster Fretboard - Scale ${fb.scale_length}mm</title>
+  <style>
+    .cut { stroke: ${COLORS.cut_through}; stroke-width: 0.2; fill: none; }
+    .fret-slot { stroke: ${COLORS.engrave_deep}; stroke-width: ${fb.fret_width.toFixed(2)}; }
+    .inlay { stroke: ${COLORS.engrave_shallow}; stroke-width: 0.2; fill: ${COLORS.engrave_shallow}; }
+    .centerline { stroke: ${COLORS.centerline}; stroke-width: 0.1; stroke-dasharray: 5,3; }
+  </style>
+  <g transform="translate(${margin}, ${margin + neck.heel_width/2})">
+`;
+
+        // Outline
+        const outline = new SVGPath();
+        outline.moveTo(0, -neck.nut_width / 2)
+               .lineTo(fbLength, -neck.heel_width / 2)
+               .lineTo(fbLength, neck.heel_width / 2)
+               .lineTo(0, neck.nut_width / 2)
+               .close();
+        svg += `    <path class="cut" d="${outline.build()}"/>\n`;
+
+        // Centerline
+        svg += `    <line class="centerline" x1="0" y1="0" x2="${fbLength.toFixed(2)}" y2="0"/>\n`;
+
+        // Fret slots
+        if (renderOptions.include_fret_slots) {
+            for (let i = 1; i < frets.length; i++) {
+                const { fret, position } = frets[i];
+                const w = widthAtDistance(position) / 2;
+                svg += `    <line class="fret-slot" x1="${position.toFixed(2)}" y1="${(-w).toFixed(2)}" x2="${position.toFixed(2)}" y2="${w.toFixed(2)}" data-fret="${fret}"/>\n`;
+            }
+        }
+
+        // Inlays
+        if (renderOptions.include_inlays) {
+            const dotRadius = 3.0;
+            for (const fretNum of fb.side_dot_positions) {
+                if (fretNum <= fb.num_frets) {
+                    const posPrev = fretNum > 0 ? frets[fretNum - 1].position : 0;
+                    const posCurr = frets[fretNum].position;
+                    const centerX = (posPrev + posCurr) / 2;
+                    const w = widthAtDistance(centerX);
+
+                    if (fb.double_dot_positions.includes(fretNum)) {
+                        const yOffset = w / 4;
+                        svg += `    <circle class="inlay" cx="${centerX.toFixed(2)}" cy="${(-yOffset).toFixed(2)}" r="${dotRadius.toFixed(1)}"/>\n`;
+                        svg += `    <circle class="inlay" cx="${centerX.toFixed(2)}" cy="${yOffset.toFixed(2)}" r="${dotRadius.toFixed(1)}"/>\n`;
+                    } else {
+                        svg += `    <circle class="inlay" cx="${centerX.toFixed(2)}" cy="0" r="${dotRadius.toFixed(1)}"/>\n`;
+                    }
+                }
+            }
+        }
+
+        svg += `  </g>\n</svg>`;
+        return svg;
+    }
+
+    function generateBodyPath() {
+        const body = spec.body;
+        const hw = body.width / 2;
+        const neckW = body.neck_pocket_width / 2;
+
+        const path = new SVGPath();
+        path.moveTo(neckW, 0);
+        path.curveTo(neckW + 20, 15, hw - 60, 30, hw - 50, 60);
+        path.curveTo(hw - 30, 100, hw, 140, hw, 180);
+        path.curveTo(hw, 220, hw - 30, 260, hw - 25, 290);
+        path.curveTo(hw - 15, 330, hw, 370, hw - 10, body.length - 10);
+        path.curveTo(hw - 30, body.length, 0, body.length + 5, 0, body.length);
+        path.curveTo(0, body.length + 5, -(hw - 30), body.length, -(hw - 10), body.length - 10);
+        path.curveTo(-hw, 370, -(hw - 15), 330, -(hw - 25), 290);
+        path.curveTo(-(hw - 30), 260, -hw, 220, -hw, 180);
+        path.curveTo(-hw, 140, -(hw - 30), 100, -(hw - 50), 60);
+        path.curveTo(-(hw - 60), 30, -(neckW + 30), 20, -neckW, 0);
+        path.lineTo(neckW, 0);
+        path.close();
+        return path.build();
+    }
+
+    function generateBodySVG(view = 'top') {
+        const body = spec.body;
+        const margin = 30.0;
+        const svgWidth = body.width + 2 * margin;
+        const svgHeight = body.length + 2 * margin;
+        const tremoloSpacing = TREMOLO_SPACING[body.tremolo_spacing].value;
+
+        let svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="${svgWidth.toFixed(2)}mm" height="${svgHeight.toFixed(2)}mm"
+     viewBox="0 0 ${svgWidth.toFixed(2)} ${svgHeight.toFixed(2)}">
+  <title>Stratocaster Body - ${view.charAt(0).toUpperCase() + view.slice(1)} View</title>
+  <style>
+    .cut { stroke: ${COLORS.cut_through}; stroke-width: 0.25; fill: none; }
+    .pocket { stroke: ${COLORS.engrave_deep}; stroke-width: 0.2; fill: none; }
+    .shallow { stroke: ${COLORS.engrave_shallow}; stroke-width: 0.2; fill: none; }
+    .reference { stroke: ${COLORS.reference}; stroke-width: 0.1; fill: none; }
+    .centerline { stroke: ${COLORS.centerline}; stroke-width: 0.1; stroke-dasharray: 5,3; }
+  </style>
+  <g transform="translate(${margin + body.width/2}, ${margin})">
+`;
+
+        svg += `    <path class="cut" d="${generateBodyPath()}"/>\n`;
+        svg += `    <line class="centerline" x1="0" y1="0" x2="0" y2="${body.length.toFixed(2)}"/>\n`;
+
+        if (view === 'top') {
+            // Neck pocket
+            const npw = body.neck_pocket_width / 2;
+            svg += `    <rect class="pocket" x="${(-npw).toFixed(2)}" y="-5" width="${body.neck_pocket_width.toFixed(2)}" height="${(body.neck_pocket_length + 5).toFixed(2)}" rx="3"/>\n`;
+
+            // Pickup routes
+            const pickupYPositions = [95, 145, 205];
+            const pl = body.neck_pickup_length;
+            const pw = body.neck_pickup_width;
+            pickupYPositions.forEach((py, i) => {
+                const angle = i === 0 ? 0 : (i === 1 ? 3 : 5);
+                if (angle) {
+                    svg += `    <g transform="translate(0, ${py}) rotate(${angle})">\n`;
+                    svg += `      <rect class="pocket" x="${(-pl/2).toFixed(2)}" y="${(-pw/2).toFixed(2)}" width="${pl.toFixed(2)}" height="${pw.toFixed(2)}" rx="2"/>\n`;
+                    svg += `    </g>\n`;
+                } else {
+                    svg += `    <rect class="pocket" x="${(-pl/2).toFixed(2)}" y="${(py - pw/2).toFixed(2)}" width="${pl.toFixed(2)}" height="${pw.toFixed(2)}" rx="2"/>\n`;
+                }
+            });
+
+            // Control cavity outline
+            svg += `    <ellipse class="shallow" cx="60" cy="310" rx="45" ry="25" transform="rotate(-10, 60, 310)"/>\n`;
+
+            // Bridge mounting
+            const tremY = 230;
+            const spacing = tremoloSpacing / 2;
+            for (let i = 0; i < 6; i++) {
+                const x = -spacing * 2.5 + i * (spacing * 5 / 5);
+                svg += `    <circle class="reference" cx="${x.toFixed(2)}" cy="${tremY.toFixed(2)}" r="1.5"/>\n`;
+            }
+
+            // Bridge screws
+            svg += `    <circle class="pocket" cx="${(-tremoloSpacing).toFixed(2)}" cy="${(tremY - 20).toFixed(2)}" r="2"/>\n`;
+            svg += `    <circle class="pocket" cx="${tremoloSpacing.toFixed(2)}" cy="${(tremY - 20).toFixed(2)}" r="2"/>\n`;
+
+            // Output jack
+            svg += `    <circle class="pocket" cx="100" cy="350" r="5"/>\n`;
+        } else {
+            // Back view - tremolo spring cavity
+            svg += `    <rect class="pocket" x="-45" y="220" width="90" height="50" rx="5"/>\n`;
+
+            // Control cavity
+            const ctrlPath = new SVGPath();
+            ctrlPath.moveTo(20, 280)
+                    .curveTo(30, 275, 80, 275, 100, 285)
+                    .curveTo(110, 300, 110, 340, 100, 350)
+                    .curveTo(80, 360, 30, 355, 20, 340)
+                    .curveTo(10, 320, 10, 295, 20, 280)
+                    .close();
+            svg += `    <path class="pocket" d="${ctrlPath.build()}"/>\n`;
+        }
+
+        svg += `  </g>\n</svg>`;
+        return svg;
+    }
+
+    function generateNeckProfileSVG() {
+        const neck = spec.neck;
+        const margin = 20.0;
+        const svgWidth = neck.heel_width + 2 * margin;
+        const svgHeight = neck.heel_thickness + 30 + 2 * margin;
+
+        let svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="${svgWidth.toFixed(2)}mm" height="${svgHeight.toFixed(2)}mm"
+     viewBox="0 0 ${svgWidth.toFixed(2)} ${svgHeight.toFixed(2)}">
+  <title>Neck Profile - ${neck.profile_shape} Shape</title>
+  <style>
+    .cut { stroke: ${COLORS.cut_through}; stroke-width: 0.2; fill: none; }
+    .reference { stroke: ${COLORS.reference}; stroke-width: 0.1; stroke-dasharray: 2,2; }
+  </style>
+  <g transform="translate(${margin + neck.heel_width/2}, ${margin})">
+`;
+
+        const profiles = [
+            { label: 'Nut', width: neck.nut_width, thickness: neck.nut_thickness, yOffset: 0 },
+            { label: 'Heel', width: neck.heel_width, thickness: neck.heel_thickness, yOffset: neck.heel_thickness + 10 }
+        ];
+
+        profiles.forEach(({ label, width, thickness, yOffset }) => {
+            const hw = width / 2;
+            const profile = new SVGPath();
+            profile.moveTo(-hw, yOffset);
+
+            if (neck.profile_shape === 'C') {
+                profile.curveTo(-hw, yOffset + thickness * 0.7, -hw * 0.2, yOffset + thickness, 0, yOffset + thickness);
+                profile.curveTo(hw * 0.2, yOffset + thickness, hw, yOffset + thickness * 0.7, hw, yOffset);
+            } else if (neck.profile_shape === 'D') {
+                profile.curveTo(-hw, yOffset + thickness * 0.5, -hw * 0.3, yOffset + thickness, 0, yOffset + thickness);
+                profile.curveTo(hw * 0.3, yOffset + thickness, hw, yOffset + thickness * 0.5, hw, yOffset);
+            } else if (neck.profile_shape === 'V') {
+                profile.lineTo(-hw * 0.1, yOffset + thickness * 0.6);
+                profile.lineTo(0, yOffset + thickness);
+                profile.lineTo(hw * 0.1, yOffset + thickness * 0.6);
+                profile.lineTo(hw, yOffset);
+            } else { // U
+                profile.lineTo(-hw, yOffset + thickness * 0.8);
+                profile.curveTo(-hw * 0.5, yOffset + thickness, hw * 0.5, yOffset + thickness, hw, yOffset + thickness * 0.8);
+                profile.lineTo(hw, yOffset);
+            }
+            profile.close();
+
+            svg += `    <!-- ${label} profile -->\n`;
+            svg += `    <path class="cut" d="${profile.build()}"/>\n`;
+
+            // Fretboard radius arc
+            const radius = neck.fretboard_radius_nut;
+            const arcDrop = radius - Math.sqrt(radius * radius - hw * hw);
+            svg += `    <path class="reference" d="M ${(-hw).toFixed(2)} ${yOffset.toFixed(2)} Q 0 ${(yOffset - arcDrop).toFixed(2)} ${hw.toFixed(2)} ${yOffset.toFixed(2)}"/>\n`;
+        });
+
+        svg += `  </g>\n</svg>`;
+        return svg;
+    }
+
+    function generateHeadstockSVG() {
+        const hs = spec.headstock;
+        const neck = spec.neck;
+        const margin = 20.0;
+        const svgWidth = hs.width + 2 * margin;
+        const svgHeight = hs.length + 50 + 2 * margin;
+
+        let svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="${svgWidth.toFixed(2)}mm" height="${svgHeight.toFixed(2)}mm"
+     viewBox="0 0 ${svgWidth.toFixed(2)} ${svgHeight.toFixed(2)}">
+  <title>Stratocaster Headstock Template</title>
+  <style>
+    .cut { stroke: ${COLORS.cut_through}; stroke-width: 0.2; fill: none; }
+    .drill { stroke: ${COLORS.engrave_deep}; stroke-width: 0.2; fill: none; }
+    .centerline { stroke: ${COLORS.centerline}; stroke-width: 0.1; stroke-dasharray: 5,3; }
+  </style>
+  <g transform="translate(${margin + hs.width/2}, ${margin + hs.length})">
+`;
+
+        const hw = hs.width / 2;
+        const nw = neck.nut_width / 2;
+
+        const path = new SVGPath();
+        path.moveTo(-nw, 0);
+        path.curveTo(-nw - 5, -20, -hw + 10, -40, -hw, -80);
+        path.curveTo(-hw - 5, -120, -hw + 10, -hs.length + 20, -hw + 20, -hs.length);
+        path.curveTo(-hw + 40, -hs.length - 10, hw - 40, -hs.length - 10, hw - 20, -hs.length);
+        path.curveTo(hw - 10, -hs.length + 20, hw + 5, -120, hw, -80);
+        path.curveTo(hw - 10, -40, nw + 5, -20, nw, 0);
+        path.close();
+
+        svg += `    <path class="cut" d="${path.build()}"/>\n`;
+        svg += `    <line class="centerline" x1="0" y1="10" x2="0" y2="${(-hs.length - 10).toFixed(2)}"/>\n`;
+
+        // Tuner holes
+        const tunerSpacing = 25.0;
+        const tunerOffsetX = 28.0;
+        for (let i = 0; i < 6; i++) {
+            const y = -30 - i * tunerSpacing;
+            svg += `    <circle class="drill" cx="${(-tunerOffsetX).toFixed(1)}" cy="${y.toFixed(1)}" r="${(hs.tuner_hole_diameter/2).toFixed(1)}"/>\n`;
+        }
+
+        // Nut slot reference
+        svg += `    <line class="centerline" x1="${(-nw).toFixed(2)}" y1="0" x2="${nw.toFixed(2)}" y2="0"/>\n`;
+
+        svg += `  </g>\n</svg>`;
+        return svg;
+    }
+
+    function generateSpecJSON() {
+        const frets = allFretPositions(spec.fretboard.scale_length, spec.fretboard.num_frets);
+        const fretObj = {};
+        frets.forEach(f => fretObj[`fret_${f.fret}`] = f.position);
+
+        return JSON.stringify({
+            format_version: '1.0',
+            units: 'mm',
+            scale_length_inches: Math.round(spec.fretboard.scale_length / 25.4 * 100) / 100,
+            specification: {
+                neck: spec.neck,
+                fretboard: spec.fretboard,
+                body: {
+                    ...spec.body,
+                    tremolo_spacing_mm: TREMOLO_SPACING[spec.body.tremolo_spacing].value
+                },
+                headstock: spec.headstock
+            },
+            fret_positions: fretObj
+        }, null, 2);
+    }
+
+    // ============================================================
+    // UI GENERATION
+    // ============================================================
+
+    function createParamRow(label, id, value, unit = 'mm', min = 0, max = 1000, step = 0.1) {
+        return `
+            <div class="param-row">
+                <label for="${id}">${label}<span class="unit">${unit}</span></label>
+                <input type="number" id="${id}" value="${value}" min="${min}" max="${max}" step="${step}">
+            </div>
+        `;
+    }
+
+    function createSelectRow(label, id, options, selected) {
+        const optionsHtml = Object.entries(options).map(([key, opt]) => 
+            `<option value="${key}" ${key === selected ? 'selected' : ''}>${opt.label || opt}</option>`
+        ).join('');
+        return `
+            <div class="param-row">
+                <label for="${id}">${label}</label>
+                <select id="${id}">${optionsHtml}</select>
+            </div>
+        `;
+    }
+
+    function createCheckboxRow(label, id, checked) {
+        return `
+            <div class="checkbox-row">
+                <input type="checkbox" id="${id}" ${checked ? 'checked' : ''}>
+                <label for="${id}">${label}</label>
+            </div>
+        `;
+    }
+
+    function renderSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        
+        sidebar.innerHTML = `
+            <div class="logo">
+                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                <h1>Strat CAD Generator</h1>
+            </div>
+
+            <div class="section" id="section-scale">
+                <div class="section-header" onclick="toggleSection('section-scale')">
+                    <h2>Scale & Fretboard</h2>
+                    <span class="toggle">▼</span>
+                </div>
+                <div class="section-content">
+                    ${createParamRow('Scale Length', 'scale_length', spec.fretboard.scale_length)}
+                    ${createParamRow('Number of Frets', 'num_frets', spec.fretboard.num_frets, '', 19, 24, 1)}
+                    ${createParamRow('Nut Width', 'nut_width', spec.neck.nut_width)}
+                    ${createParamRow('Heel Width', 'heel_width', spec.neck.heel_width)}
+                    ${createParamRow('Fret Slot Width', 'fret_width', spec.fretboard.fret_width)}
+                    ${createParamRow('Fretboard Radius', 'fb_radius', spec.neck.fretboard_radius_nut)}
+                    ${createCheckboxRow('Include Fret Slots', 'include_fret_slots', renderOptions.include_fret_slots)}
+                    ${createCheckboxRow('Include Inlays', 'include_inlays', renderOptions.include_inlays)}
+                </div>
+            </div>
+
+            <div class="section" id="section-neck">
+                <div class="section-header" onclick="toggleSection('section-neck')">
+                    <h2>Neck Profile</h2>
+                    <span class="toggle">▼</span>
+                </div>
+                <div class="section-content">
+                    ${createSelectRow('Profile Shape', 'profile_shape', {
+                        'C': { label: 'C - Classic' },
+                        'D': { label: 'D - Flat Back' },
+                        'V': { label: 'V - Vintage' },
+                        'U': { label: 'U - Chunky' }
+                    }, spec.neck.profile_shape)}
+                    ${createParamRow('Nut Thickness', 'nut_thickness', spec.neck.nut_thickness)}
+                    ${createParamRow('Heel Thickness', 'heel_thickness', spec.neck.heel_thickness)}
+                </div>
+            </div>
+
+            <div class="section" id="section-body">
+                <div class="section-header" onclick="toggleSection('section-body')">
+                    <h2>Body</h2>
+                    <span class="toggle">▼</span>
+                </div>
+                <div class="section-content">
+                    ${createParamRow('Body Thickness', 'body_thickness', spec.body.thickness)}
+                    ${createParamRow('Body Width', 'body_width', spec.body.width)}
+                    ${createParamRow('Body Length', 'body_length', spec.body.length)}
+                    ${createSelectRow('Tremolo Spacing', 'tremolo_spacing', TREMOLO_SPACING, spec.body.tremolo_spacing)}
+                    ${createParamRow('Neck Pocket Length', 'neck_pocket_length', spec.body.neck_pocket_length)}
+                    ${createParamRow('Neck Pocket Width', 'neck_pocket_width', spec.body.neck_pocket_width)}
+                    ${createParamRow('Pickup Length', 'pickup_length', spec.body.neck_pickup_length)}
+                    ${createParamRow('Pickup Width', 'pickup_width', spec.body.neck_pickup_width)}
+                </div>
+            </div>
+
+            <div class="section" id="section-headstock">
+                <div class="section-header" onclick="toggleSection('section-headstock')">
+                    <h2>Headstock</h2>
+                    <span class="toggle">▼</span>
+                </div>
+                <div class="section-content">
+                    ${createParamRow('Headstock Length', 'hs_length', spec.headstock.length)}
+                    ${createParamRow('Headstock Width', 'hs_width', spec.headstock.width)}
+                    ${createParamRow('Tuner Hole Diameter', 'tuner_hole', spec.headstock.tuner_hole_diameter)}
+                </div>
+            </div>
+
+            <div class="export-section">
+                <h3>Saved Designs</h3>
+                <div class="preset-controls">
+                    <select id="preset-select" style="width: 100%; margin-bottom: 0.5rem; padding: 0.5rem; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px;">
+                        <option value="">-- Load a saved design --</option>
+                    </select>
+                    <div class="export-buttons">
+                        <button class="btn btn-secondary" onclick="promptSavePreset()">Save Design</button>
+                        <button class="btn btn-secondary" onclick="promptDeletePreset()">Delete</button>
+                        <button class="btn btn-secondary btn-full" onclick="confirmReset()">Reset to Defaults</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="export-section">
+                <h3>Export Templates</h3>
+                <div class="export-buttons">
+                    <button class="btn btn-primary" onclick="downloadSVG('fretboard')">Fretboard SVG</button>
+                    <button class="btn btn-primary" onclick="downloadSVG('body_top')">Body Top SVG</button>
+                    <button class="btn btn-primary" onclick="downloadSVG('body_back')">Body Back SVG</button>
+                    <button class="btn btn-primary" onclick="downloadSVG('neck')">Neck Profile SVG</button>
+                    <button class="btn btn-primary" onclick="downloadSVG('headstock')">Headstock SVG</button>
+                    <button class="btn btn-secondary" onclick="downloadJSON()">JSON Spec</button>
+                    <button class="btn btn-secondary btn-full" onclick="downloadAll()">Download All (ZIP)</button>
+                </div>
+                <div class="color-legend">
+                    <div class="legend-item"><div class="legend-swatch" style="background: ${COLORS.cut_through}"></div>Cut Through</div>
+                    <div class="legend-item"><div class="legend-swatch" style="background: ${COLORS.engrave_deep}"></div>Deep Pocket</div>
+                    <div class="legend-item"><div class="legend-swatch" style="background: ${COLORS.engrave_shallow}"></div>Shallow Engrave</div>
+                    <div class="legend-item"><div class="legend-swatch" style="background: ${COLORS.centerline}"></div>Reference</div>
+                </div>
+            </div>
+
+            <div class="fret-table" id="fret-table"></div>
+        `;
+
+        // Add event listeners
+        document.querySelectorAll('input, select').forEach(el => {
+            el.addEventListener('change', handleParamChange);
+            el.addEventListener('input', handleParamChange);
+        });
+
+        updateFretTable();
+    }
+
+    function toggleSection(sectionId) {
+        document.getElementById(sectionId).classList.toggle('collapsed');
+    }
+
+    function handleParamChange(e) {
+        const id = e.target.id;
+        const value = e.target.type === 'checkbox' ? e.target.checked : 
+                      e.target.type === 'number' ? parseFloat(e.target.value) : e.target.value;
+
+        // Update spec
+        const mappings = {
+            scale_length: () => spec.fretboard.scale_length = value,
+            num_frets: () => spec.fretboard.num_frets = value,
+            nut_width: () => spec.neck.nut_width = value,
+            heel_width: () => spec.neck.heel_width = value,
+            fret_width: () => spec.fretboard.fret_width = value,
+            fb_radius: () => spec.neck.fretboard_radius_nut = value,
+            profile_shape: () => spec.neck.profile_shape = value,
+            nut_thickness: () => spec.neck.nut_thickness = value,
+            heel_thickness: () => spec.neck.heel_thickness = value,
+            body_thickness: () => spec.body.thickness = value,
+            body_width: () => spec.body.width = value,
+            body_length: () => spec.body.length = value,
+            tremolo_spacing: () => spec.body.tremolo_spacing = value,
+            neck_pocket_length: () => spec.body.neck_pocket_length = value,
+            neck_pocket_width: () => spec.body.neck_pocket_width = value,
+            pickup_length: () => { spec.body.neck_pickup_length = value; spec.body.middle_pickup_length = value; spec.body.bridge_pickup_length = value; },
+            pickup_width: () => { spec.body.neck_pickup_width = value; spec.body.middle_pickup_width = value; spec.body.bridge_pickup_width = value; },
+            hs_length: () => spec.headstock.length = value,
+            hs_width: () => spec.headstock.width = value,
+            tuner_hole: () => spec.headstock.tuner_hole_diameter = value,
+            include_fret_slots: () => renderOptions.include_fret_slots = value,
+            include_inlays: () => renderOptions.include_inlays = value
+        };
+
+        if (mappings[id]) {
+            mappings[id]();
+            saveToLocalStorage();
+            updatePreview();
+            if (id === 'scale_length' || id === 'num_frets') {
+                updateFretTable();
+            }
+        }
+    }
+
+    function updateFretTable() {
+        const frets = allFretPositions(spec.fretboard.scale_length, spec.fretboard.num_frets);
+        let html = `<h3>Fret Positions</h3><table>
+            <tr><th>Fret</th><th>From Nut</th><th>Remaining</th></tr>`;
+        
+        frets.forEach(({ fret, position }) => {
+            const remaining = (spec.fretboard.scale_length - position).toFixed(2);
+            html += `<tr><td>${fret}</td><td>${position.toFixed(2)} mm</td><td>${remaining} mm</td></tr>`;
+        });
+        
+        html += '</table>';
+        document.getElementById('fret-table').innerHTML = html;
+    }
+
+    function renderTabs() {
+        const tabs = [
+            { id: 'fretboard', label: 'Fretboard' },
+            { id: 'body_top', label: 'Body (Top)' },
+            { id: 'body_back', label: 'Body (Back)' },
+            { id: 'neck', label: 'Neck Profile' },
+            { id: 'headstock', label: 'Headstock' }
+        ];
+
+        document.getElementById('preview-tabs').innerHTML = tabs.map(tab =>
+            `<button class="tab-btn ${tab.id === activeTab ? 'active' : ''}" onclick="setActiveTab('${tab.id}')">${tab.label}</button>`
+        ).join('');
+    }
+
+    function setActiveTab(tabId) {
+        activeTab = tabId;
+        renderTabs();
+        updatePreview();
+    }
+
+    function updatePreview() {
+        let svg;
+        switch (activeTab) {
+            case 'fretboard': svg = generateFretboardSVG(); break;
+            case 'body_top': svg = generateBodySVG('top'); break;
+            case 'body_back': svg = generateBodySVG('back'); break;
+            case 'neck': svg = generateNeckProfileSVG(); break;
+            case 'headstock': svg = generateHeadstockSVG(); break;
+        }
+        document.getElementById('preview-container').innerHTML = svg;
+    }
+
+    // ============================================================
+    // DOWNLOAD FUNCTIONS
+    // ============================================================
+
+    function downloadBlob(content, filename, mimeType) {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function downloadSVG(type) {
+        let svg, filename;
+        switch (type) {
+            case 'fretboard':
+                svg = generateFretboardSVG();
+                filename = 'stratocaster_fretboard.svg';
+                break;
+            case 'body_top':
+                svg = generateBodySVG('top');
+                filename = 'stratocaster_body_top.svg';
+                break;
+            case 'body_back':
+                svg = generateBodySVG('back');
+                filename = 'stratocaster_body_back.svg';
+                break;
+            case 'neck':
+                svg = generateNeckProfileSVG();
+                filename = 'stratocaster_neck_profiles.svg';
+                break;
+            case 'headstock':
+                svg = generateHeadstockSVG();
+                filename = 'stratocaster_headstock.svg';
+                break;
+        }
+        downloadBlob(svg, filename, 'image/svg+xml');
+    }
+
+    function downloadJSON() {
+        downloadBlob(generateSpecJSON(), 'stratocaster_spec.json', 'application/json');
+    }
+
+    async function downloadAll() {
+        // Dynamic import of JSZip from CDN
+        if (typeof JSZip === 'undefined') {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+            document.head.appendChild(script);
+            await new Promise(resolve => script.onload = resolve);
+        }
+
+        const zip = new JSZip();
+        zip.file('stratocaster_fretboard.svg', generateFretboardSVG());
+        zip.file('stratocaster_body_top.svg', generateBodySVG('top'));
+        zip.file('stratocaster_body_back.svg', generateBodySVG('back'));
+        zip.file('stratocaster_neck_profiles.svg', generateNeckProfileSVG());
+        zip.file('stratocaster_headstock.svg', generateHeadstockSVG());
+        zip.file('stratocaster_spec.json', generateSpecJSON());
+
+        const content = await zip.generateAsync({ type: 'blob' });
+        downloadBlob(content, 'stratocaster_templates.zip', 'application/zip');
+    }
+
+    // ============================================================
+    // PRESET UI HANDLERS
+    // ============================================================
+
+    function updatePresetDropdown() {
+        const select = document.getElementById('preset-select');
+        if (!select) return;
+        const presets = getPresetList();
+        select.innerHTML = '<option value="">-- Load a saved design --</option>' +
+            presets.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+    }
+
+    function promptSavePreset() {
+        const name = prompt('Enter a name for this design:');
+        if (name && name.trim()) {
+            if (savePreset(name.trim())) {
+                updatePresetDropdown();
+                alert(`Design "${name.trim()}" saved!`);
+            }
+        }
+    }
+
+    function promptDeletePreset() {
+        const select = document.getElementById('preset-select');
+        const name = select ? select.value : '';
+        if (!name) {
+            alert('Please select a design to delete first.');
+            return;
+        }
+        if (confirm(`Delete design "${name}"?`)) {
+            deletePreset(name);
+            updatePresetDropdown();
+        }
+    }
+
+    function confirmReset() {
+        if (confirm('Reset all parameters to factory defaults?')) {
+            resetToDefaults();
+            renderSidebar();
+            renderTabs();
+            updatePreview();
+        }
+    }
+
+    function handlePresetSelect(e) {
+        const name = e.target.value;
+        if (name && loadPreset(name)) {
+            renderSidebar();
+            renderTabs();
+            updatePreview();
+        }
+    }
+
+    // ============================================================
+    // INITIALIZATION
+    // ============================================================
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadFromLocalStorage();
+        renderSidebar();
+        renderTabs();
+        updatePreview();
+        updatePresetDropdown();
+
+        // Add preset select listener
+        const presetSelect = document.getElementById('preset-select');
+        if (presetSelect) {
+            presetSelect.addEventListener('change', handlePresetSelect);
+        }
+    });
+
+    // Expose functions to global scope for onclick handlers
+    window.toggleSection = toggleSection;
+    window.setActiveTab = setActiveTab;
+    window.downloadSVG = downloadSVG;
+    window.downloadJSON = downloadJSON;
+    window.downloadAll = downloadAll;
+    window.promptSavePreset = promptSavePreset;
+    window.promptDeletePreset = promptDeletePreset;
+    window.confirmReset = confirmReset;
+    </script>
+</body>
+</html>
