@@ -703,19 +703,46 @@
         const body = spec.body;
         const hw = body.width / 2;
         const neckW = body.neck_pocket_width / 2;
+        const L = body.length;
 
         const path = new SVGPath();
+
+        // Start at neck pocket, treble side
         path.moveTo(neckW, 0);
-        path.curveTo(neckW + 20, 15, hw - 60, 30, hw - 50, 60);
-        path.curveTo(hw - 30, 100, hw, 140, hw, 180);
-        path.curveTo(hw, 220, hw - 30, 260, hw - 25, 290);
-        path.curveTo(hw - 15, 330, hw, 370, hw - 10, body.length - 10);
-        path.curveTo(hw - 30, body.length, 0, body.length + 5, 0, body.length);
-        path.curveTo(0, body.length + 5, -(hw - 30), body.length, -(hw - 10), body.length - 10);
-        path.curveTo(-hw, 370, -(hw - 15), 330, -(hw - 25), 290);
-        path.curveTo(-(hw - 30), 260, -hw, 220, -hw, 180);
-        path.curveTo(-hw, 140, -(hw - 30), 100, -(hw - 50), 60);
-        path.curveTo(-(hw - 60), 30, -(neckW + 30), 20, -neckW, 0);
+
+        // Treble horn - curves out then back for the cutaway
+        path.curveTo(neckW + 8, 5, neckW + 25, 15, neckW + 45, 35);
+        path.curveTo(neckW + 70, 60, hw - 45, 75, hw - 30, 95);
+
+        // Treble upper bout - smooth curve to widest point
+        path.curveTo(hw - 10, 120, hw + 5, 155, hw, 185);
+
+        // Treble waist - the distinctive Strat curve inward
+        path.curveTo(hw - 5, 215, hw - 35, 250, hw - 30, 280);
+
+        // Treble lower bout - curves back out
+        path.curveTo(hw - 20, 320, hw - 5, 350, hw - 15, L - 25);
+
+        // Bottom treble corner
+        path.curveTo(hw - 25, L - 8, hw - 50, L + 2, 0, L);
+
+        // Bottom bass corner (mirror)
+        path.curveTo(-(hw - 50), L + 2, -(hw - 25), L - 8, -(hw - 15), L - 25);
+
+        // Bass lower bout
+        path.curveTo(-(hw - 5), 350, -(hw - 20), 320, -(hw - 30), 280);
+
+        // Bass waist
+        path.curveTo(-(hw - 35), 250, -(hw - 5), 215, -hw, 185);
+
+        // Bass upper bout
+        path.curveTo(-(hw + 5), 155, -(hw - 10), 120, -(hw - 30), 95);
+
+        // Bass horn - longer/deeper than treble (classic Strat asymmetry)
+        path.curveTo(-(hw - 45), 75, -(neckW + 80), 50, -(neckW + 55), 25);
+        path.curveTo(-(neckW + 35), 8, -(neckW + 12), 0, -neckW, 0);
+
+        // Close back to start
         path.lineTo(neckW, 0);
         path.close();
         return path.build();
