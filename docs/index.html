@@ -383,6 +383,11 @@
         MODERN_METRIC: { value: 56.0, label: 'Modern Metric (56mm)' }
     };
 
+    const BODY_SHAPES = {
+        STRATOCASTER: { label: 'Stratocaster' },
+        TELECASTER: { label: 'Telecaster' }
+    };
+
     const COLORS = {
         cut_through: '#FF0000',
         engrave_deep: '#0000FF',
@@ -414,6 +419,7 @@
             extension_beyond_last_fret: 12.0
         },
         body: {
+            shape: 'STRATOCASTER',
             thickness: 44.0,
             width: 318.0,
             length: 400.0,
@@ -699,7 +705,7 @@
         return svg;
     }
 
-    function generateBodyPath() {
+    function generateStratocasterBodyPath() {
         const body = spec.body;
         const hw = body.width / 2;
         const neckW = body.neck_pocket_width / 2;
@@ -746,6 +752,54 @@
         path.lineTo(neckW, 0);
         path.close();
         return path.build();
+    }
+
+    function generateTelecasterBodyPath() {
+        const body = spec.body;
+        const hw = body.width / 2;
+        const neckW = body.neck_pocket_width / 2;
+        const L = body.length;
+
+        const path = new SVGPath();
+
+        // Start at neck pocket, treble side
+        path.moveTo(neckW, 0);
+
+        // Treble cutaway horn - single cutaway, curves up and around
+        path.curveTo(neckW + 15, 8, neckW + 40, 25, neckW + 60, 50);
+        path.curveTo(neckW + 85, 80, hw - 20, 100, hw - 5, 130);
+
+        // Treble side - relatively straight down to lower bout
+        path.curveTo(hw + 5, 170, hw + 5, 220, hw, 270);
+
+        // Treble lower bout - gentle curve
+        path.curveTo(hw - 5, 320, hw - 15, 360, hw - 40, L - 15);
+
+        // Bottom - rounded corners, flatter than Strat
+        path.curveTo(hw - 70, L + 5, 40, L + 10, 0, L + 5);
+        path.curveTo(-40, L + 10, -(hw - 70), L + 5, -(hw - 40), L - 15);
+
+        // Bass lower bout
+        path.curveTo(-(hw - 15), 360, -(hw - 5), 320, -hw, 270);
+
+        // Bass side - no cutaway, smooth curve up
+        path.curveTo(-(hw + 5), 220, -(hw + 5), 170, -(hw - 5), 130);
+
+        // Bass upper bout - no horn, rounded shoulder
+        path.curveTo(-(hw - 20), 90, -(hw - 40), 50, -(hw - 70), 25);
+        path.curveTo(-(hw - 100), 5, -(neckW + 20), 0, -neckW, 0);
+
+        // Close back to start
+        path.lineTo(neckW, 0);
+        path.close();
+        return path.build();
+    }
+
+    function generateBodyPath() {
+        if (spec.body.shape === 'TELECASTER') {
+            return generateTelecasterBodyPath();
+        }
+        return generateStratocasterBodyPath();
     }
 
     function generateBodySVG(view = 'top') {
@@ -1043,6 +1097,7 @@
                     <span class="toggle">▼</span>
                 </div>
                 <div class="section-content">
+                    ${createSelectRow('Body Shape', 'body_shape', BODY_SHAPES, spec.body.shape)}
                     ${createParamRow('Body Thickness', 'body_thickness', spec.body.thickness)}
                     ${createParamRow('Body Width', 'body_width', spec.body.width)}
                     ${createParamRow('Body Length', 'body_length', spec.body.length)}
@@ -1131,6 +1186,7 @@
             profile_shape: () => spec.neck.profile_shape = value,
             nut_thickness: () => spec.neck.nut_thickness = value,
             heel_thickness: () => spec.neck.heel_thickness = value,
+            body_shape: () => spec.body.shape = value,
             body_thickness: () => spec.body.thickness = value,
             body_width: () => spec.body.width = value,
             body_length: () => spec.body.length = value,
