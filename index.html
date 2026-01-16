@@ -346,39 +346,69 @@
         async function connectBLE() {
             try {
                 log('Requesting BLE device...');
-                
+
                 device = await navigator.bluetooth.requestDevice({
                     filters: [{ services: [SERVICE_UUID] }],
                     optionalServices: [SERVICE_UUID]
                 });
-                
-                log(`Found device: ${device.name}`);
-                document.getElementById('deviceName').textContent = device.name;
-                
+
+                if (!device) {
+                    throw new Error('No device selected');
+                }
+
+                const deviceName = device.name || 'Unknown Device';
+                log(`Found device: ${deviceName}`);
+
+                const deviceNameEl = document.getElementById('deviceName');
+                if (deviceNameEl) {
+                    deviceNameEl.textContent = deviceName;
+                }
+
                 device.addEventListener('gattserverdisconnected', onDisconnected);
-                
+
                 log('Connecting to GATT server...');
+                if (!device.gatt) {
+                    throw new Error('Device does not support GATT');
+                }
                 server = await device.gatt.connect();
-                
+
+                if (!server) {
+                    throw new Error('Failed to connect to GATT server');
+                }
+
                 log('Getting service...');
                 const service = await server.getPrimaryService(SERVICE_UUID);
-                
+
+                if (!service) {
+                    throw new Error('Audio DSP service not found on device');
+                }
+
                 log('Getting characteristics...');
                 controlChar = await service.getCharacteristic(CONTROL_CHAR_UUID);
                 statusChar = await service.getCharacteristic(STATUS_CHAR_UUID);
-                
+
+                if (!controlChar || !statusChar) {
+                    throw new Error('Required characteristics not found on device');
+                }
+
                 // Subscribe to status notifications
                 await statusChar.startNotifications();
                 statusChar.addEventListener('characteristicvaluechanged', onStatusUpdate);
-                
+
                 onConnected();
                 log('Connected!', 'success');
-                
+
                 // Request initial status
                 await sendCommand({ type: 'GetStatus' });
-                
+
             } catch (error) {
-                log(`Error: ${error.message}`, 'error');
+                const errorMessage = error && error.message ? error.message : 'Unknown connection error';
+                log(`Error: ${errorMessage}`, 'error');
+                // Reset state on error
+                device = null;
+                server = null;
+                controlChar = null;
+                statusChar = null;
             }
         }
         
@@ -414,22 +444,57 @@
         
         // Status updates
         function onStatusUpdate(event) {
+            if (!event || !event.target || !event.target.value) {
+                log('Received empty status update', 'error');
+                return;
+            }
+
             const value = event.target.value;
             const decoder = new TextDecoder();
             try {
-                const status = JSON.parse(decoder.decode(value));
-                updateStatusDisplay(status);
+                const decoded = decoder.decode(value);
+                if (!decoded || decoded.trim() === '') {
+                    log('Received empty status data', 'info');
+                    return;
+                }
+                const status = JSON.parse(decoded);
+                if (status && typeof status === 'object') {
+                    updateStatusDisplay(status);
+                } else {
+                    log('Received invalid status format', 'error');
+                }
             } catch (e) {
                 // Binary format - would need postcard decoder
                 log('Received status update (binary)', 'info');
             }
         }
-        
+
         function updateStatusDisplay(status) {
-            document.getElementById('usbStatus').textContent = status.usb_connected ? 'Connected' : 'Disconnected';
-            document.getElementById('headphoneStatus').textContent = status.headphone_connected ? 'Connected' : 'Disconnected';
-            document.getElementById('streamingStatus').textContent = status.headphone_streaming ? 'Streaming' : 'Idle';
-            document.getElementById('latencyStatus').textContent = `${status.latency_ms || '--'} ms`;
+            if (!status || typeof status !== 'object') {
+                log('Invalid status object received', 'error');
+                return;
+            }
+
+            const usbStatusEl = document.getElementById('usbStatus');
+            const headphoneStatusEl = document.getElementById('headphoneStatus');
+            const streamingStatusEl = document.getElementById('streamingStatus');
+            const latencyStatusEl = document.getElementById('latencyStatus');
+
+            if (usbStatusEl) {
+                usbStatusEl.textContent = status.usb_connected === true ? 'Connected' : 'Disconnected';
+            }
+            if (headphoneStatusEl) {
+                headphoneStatusEl.textContent = status.headphone_connected === true ? 'Connected' : 'Disconnected';
+            }
+            if (streamingStatusEl) {
+                streamingStatusEl.textContent = status.headphone_streaming === true ? 'Streaming' : 'Idle';
+            }
+            if (latencyStatusEl) {
+                const latency = typeof status.latency_ms === 'number' && !isNaN(status.latency_ms)
+                    ? status.latency_ms
+                    : '--';
+                latencyStatusEl.textContent = `${latency} ms`;
+            }
         }
         
         // Send command to ESP32
@@ -452,8 +517,21 @@
         
         // Volume control
         function updateVolume(value) {
-            document.getElementById('volumeValue').textContent = `${value}%`;
-            sendCommand({ type: 'SetVolume', value: parseInt(value) });
+            const volumeValueEl = document.getElementById('volumeValue');
+            const parsedValue = parseInt(value, 10);
+
+            if (isNaN(parsedValue)) {
+                log('Invalid volume value', 'error');
+                return;
+            }
+
+            // Clamp value to valid range
+            const clampedValue = Math.max(0, Math.min(100, parsedValue));
+
+            if (volumeValueEl) {
+                volumeValueEl.textContent = `${clampedValue}%`;
+            }
+            sendCommand({ type: 'SetVolume', value: clampedValue });
         }
         
         // Filter controls
@@ -482,50 +560,153 @@
         }
         
         function updateLpCutoff(value) {
-            document.getElementById('lpCutoffValue').textContent = `${value} Hz`;
+            const el = document.getElementById('lpCutoffValue');
+            if (el) {
+                el.textContent = `${value} Hz`;
+            }
         }
-        
+
         function updateHpCutoff(value) {
-            document.getElementById('hpCutoffValue').textContent = `${value} Hz`;
+            const el = document.getElementById('hpCutoffValue');
+            if (el) {
+                el.textContent = `${value} Hz`;
+            }
+        }
+
+        function updateBpLow(value) {
+            const el = document.getElementById('bpLowValue');
+            if (el) {
+                el.textContent = `${value} Hz`;
+            }
+        }
+
+        function updateBpHigh(value) {
+            const el = document.getElementById('bpHighValue');
+            if (el) {
+                el.textContent = `${value} Hz`;
+            }
+        }
+
+        function updatePeqFreq(value) {
+            const el = document.getElementById('peqFreqValue');
+            if (el) {
+                el.textContent = `${value} Hz`;
+            }
+        }
+
+        function updatePeqGain(value) {
+            const el = document.getElementById('peqGainValue');
+            if (el) {
+                el.textContent = `${value} dB`;
+            }
+        }
+
+        function updatePeqQ(value) {
+            const el = document.getElementById('peqQValue');
+            if (el) {
+                el.textContent = value;
+            }
         }
         
-        function updateBpLow(value) {}
-        function updateBpHigh(value) {}
-        function updatePeqFreq(value) {}
-        function updatePeqGain(value) {}
-        function updatePeqQ(value) {}
-        
+        // Helper function to safely parse integer values from DOM elements
+        function safeParseInt(elementId, defaultValue, min, max) {
+            const el = document.getElementById(elementId);
+            if (!el) {
+                log(`Element '${elementId}' not found`, 'error');
+                return defaultValue;
+            }
+            const value = parseInt(el.value, 10);
+            if (isNaN(value)) {
+                log(`Invalid value for '${elementId}'`, 'error');
+                return defaultValue;
+            }
+            return Math.max(min, Math.min(max, value));
+        }
+
+        // Helper function to safely parse float values from DOM elements
+        function safeParseFloat(elementId, defaultValue, min, max) {
+            const el = document.getElementById(elementId);
+            if (!el) {
+                log(`Element '${elementId}' not found`, 'error');
+                return defaultValue;
+            }
+            const value = parseFloat(el.value);
+            if (isNaN(value)) {
+                log(`Invalid value for '${elementId}'`, 'error');
+                return defaultValue;
+            }
+            return Math.max(min, Math.min(max, value));
+        }
+
         function applyFilter() {
-            const preset = document.getElementById('filterPreset').value;
+            const presetEl = document.getElementById('filterPreset');
+            if (!presetEl) {
+                log('Filter preset selector not found', 'error');
+                return;
+            }
+
+            const preset = presetEl.value;
             let cmd = { type: 'SetFilterPreset' };
-            
+
+            // Audio frequency range constants
+            const MIN_FREQ = 20;
+            const MAX_FREQ = 20000;
+
             switch (preset) {
                 case 'bypass':
                     cmd.preset = { type: 'Bypass' };
                     break;
-                case 'lowpass':
-                    cmd.preset = { type: 'LowPass', cutoff_hz: parseInt(document.getElementById('lpCutoff').value) };
+                case 'lowpass': {
+                    const cutoff = safeParseInt('lpCutoff', 5000, MIN_FREQ, MAX_FREQ);
+                    cmd.preset = { type: 'LowPass', cutoff_hz: cutoff };
                     break;
-                case 'highpass':
-                    cmd.preset = { type: 'HighPass', cutoff_hz: parseInt(document.getElementById('hpCutoff').value) };
+                }
+                case 'highpass': {
+                    const cutoff = safeParseInt('hpCutoff', 200, MIN_FREQ, MAX_FREQ);
+                    cmd.preset = { type: 'HighPass', cutoff_hz: cutoff };
                     break;
-                case 'bandpass':
-                    cmd.preset = { 
-                        type: 'BandPass', 
-                        low_hz: parseInt(document.getElementById('bpLow').value),
-                        high_hz: parseInt(document.getElementById('bpHigh').value)
+                }
+                case 'bandpass': {
+                    const lowHz = safeParseInt('bpLow', 200, MIN_FREQ, MAX_FREQ);
+                    const highHz = safeParseInt('bpHigh', 5000, MIN_FREQ, MAX_FREQ);
+
+                    // Validate low_hz < high_hz
+                    if (lowHz >= highHz) {
+                        log('Band-pass error: Low frequency must be less than high frequency', 'error');
+                        return;
+                    }
+
+                    cmd.preset = {
+                        type: 'BandPass',
+                        low_hz: lowHz,
+                        high_hz: highHz
                     };
                     break;
-                case 'parametric':
+                }
+                case 'parametric': {
+                    const centerHz = safeParseInt('peqFreq', 1000, MIN_FREQ, MAX_FREQ);
+                    const gainDb = safeParseFloat('peqGain', 0, -12, 12);
+                    const q = safeParseFloat('peqQ', 1, 0.1, 10);
+
+                    // Validate Q factor is positive
+                    if (q <= 0) {
+                        log('Parametric EQ error: Q factor must be positive', 'error');
+                        return;
+                    }
+
                     cmd.preset = {
                         type: 'Parametric',
-                        center_hz: parseInt(document.getElementById('peqFreq').value),
-                        gain_db: parseFloat(document.getElementById('peqGain').value),
-                        q: parseFloat(document.getElementById('peqQ').value)
+                        center_hz: centerHz,
+                        gain_db: gainDb,
+                        q: q
                     };
                     break;
+                }
+                default:
+                    log(`Unknown filter preset: ${preset}`, 'error');
+                    return;
             }
-            
+
             sendCommand(cmd);
         }
         

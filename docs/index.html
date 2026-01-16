@@ -571,10 +571,32 @@
     // ============================================================
 
     function fretPosition(scaleLength, fretNumber) {
-        if (fretNumber < 0) throw new Error('Fret number must be non-negative');
+        if (typeof scaleLength !== 'number' || isNaN(scaleLength)) {
+            throw new Error('Scale length must be a valid number');
+        }
+        if (scaleLength <= 0) {
+            throw new Error('Scale length must be positive');
+        }
+        if (typeof fretNumber !== 'number' || isNaN(fretNumber)) {
+            throw new Error('Fret number must be a valid number');
+        }
+        if (fretNumber < 0) {
+            throw new Error('Fret number must be non-negative');
+        }
+        if (!Number.isInteger(fretNumber)) {
+            throw new Error('Fret number must be an integer');
+        }
         if (fretNumber === 0) return 0.0;
+
         const ratio = Math.pow(2.0, fretNumber / 12.0);
-        return Math.round((scaleLength * (1.0 - 1.0 / ratio)) * 100) / 100;
+        // ratio will always be >= 1 for fretNumber >= 0, so division is safe
+        const result = Math.round((scaleLength * (1.0 - 1.0 / ratio)) * 100) / 100;
+
+        if (isNaN(result) || !isFinite(result)) {
+            throw new Error(`Invalid fret position calculated for fret ${fretNumber}`);
+        }
+
+        return result;
     }
 
     function allFretPositions(scaleLength, numFrets) {
@@ -633,8 +655,33 @@
     function generateFretboardSVG() {
         const fb = spec.fretboard;
         const neck = spec.neck;
-        const frets = allFretPositions(fb.scale_length, fb.num_frets);
+
+        // Validate inputs
+        if (!fb || !neck) {
+            console.error('Missing fretboard or neck specification');
+            return '<svg><text x="10" y="30" fill="red">Error: Missing specification data</text></svg>';
+        }
+
+        let frets;
+        try {
+            frets = allFretPositions(fb.scale_length, fb.num_frets);
+        } catch (e) {
+            console.error('Error calculating fret positions:', e.message);
+            return `<svg><text x="10" y="30" fill="red">Error: ${e.message}</text></svg>`;
+        }
+
+        if (!frets || frets.length === 0) {
+            console.error('No fret positions calculated');
+            return '<svg><text x="10" y="30" fill="red">Error: No fret positions</text></svg>';
+        }
+
         const fbLength = frets[frets.length - 1].position + fb.extension_beyond_last_fret;
+
+        // Guard against division by zero
+        if (fbLength <= 0) {
+            console.error('Fretboard length must be positive');
+            return '<svg><text x="10" y="30" fill="red">Error: Invalid fretboard length</text></svg>';
+        }
 
         function widthAtDistance(dist) {
             const t = dist / fbLength;
@@ -799,10 +846,34 @@
 
     function generateBodySVG(view = 'top') {
         const body = spec.body;
+
+        // Validate body specification
+        if (!body) {
+            console.error('Missing body specification');
+            return '<svg><text x="10" y="30" fill="red">Error: Missing body specification</text></svg>';
+        }
+
+        if (typeof body.width !== 'number' || body.width <= 0) {
+            console.error('Invalid body width');
+            return '<svg><text x="10" y="30" fill="red">Error: Invalid body width</text></svg>';
+        }
+
+        if (typeof body.length !== 'number' || body.length <= 0) {
+            console.error('Invalid body length');
+            return '<svg><text x="10" y="30" fill="red">Error: Invalid body length</text></svg>';
+        }
+
         const margin = 30.0;
         const svgWidth = body.width + 2 * margin;
         const svgHeight = body.length + 2 * margin;
-        const tremoloSpacing = TREMOLO_SPACING[body.tremolo_spacing].value;
+
+        // Validate tremolo spacing lookup
+        const tremoloConfig = TREMOLO_SPACING[body.tremolo_spacing];
+        if (!tremoloConfig || typeof tremoloConfig.value !== 'number') {
+            console.error(`Invalid tremolo spacing type: ${body.tremolo_spacing}`);
+            return '<svg><text x="10" y="30" fill="red">Error: Invalid tremolo spacing configuration</text></svg>';
+        }
+        const tremoloSpacing = tremoloConfig.value;
 
         let svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg"
@@ -880,6 +951,23 @@
 
     function generateNeckProfileSVG() {
         const neck = spec.neck;
+
+        // Validate neck specification
+        if (!neck) {
+            console.error('Missing neck specification');
+            return '<svg><text x="10" y="30" fill="red">Error: Missing neck specification</text></svg>';
+        }
+
+        if (typeof neck.heel_width !== 'number' || neck.heel_width <= 0) {
+            console.error('Invalid heel width');
+            return '<svg><text x="10" y="30" fill="red">Error: Invalid heel width</text></svg>';
+        }
+
+        if (typeof neck.heel_thickness !== 'number' || neck.heel_thickness <= 0) {
+            console.error('Invalid heel thickness');
+            return '<svg><text x="10" y="30" fill="red">Error: Invalid heel thickness</text></svg>';
+        }
+
         const margin = 20.0;
         const svgWidth = neck.heel_width + 2 * margin;
         const svgHeight = neck.heel_thickness + 30 + 2 * margin;
@@ -929,8 +1017,18 @@
 
             // Fretboard radius arc
             const radius = neck.fretboard_radius_nut;
-            const arcDrop = radius - Math.sqrt(radius * radius - hw * hw);
-            svg += `    <path class="reference" d="M ${(-hw).toFixed(2)} ${yOffset.toFixed(2)} Q 0 ${(yOffset - arcDrop).toFixed(2)} ${hw.toFixed(2)} ${yOffset.toFixed(2)}"/>\n`;
+            if (typeof radius === 'number' && radius > 0) {
+                // Check if radius is large enough to avoid imaginary numbers
+                // hw must be <= radius for sqrt to be valid
+                if (hw <= radius) {
+                    const arcDrop = radius - Math.sqrt(radius * radius - hw * hw);
+                    svg += `    <path class="reference" d="M ${(-hw).toFixed(2)} ${yOffset.toFixed(2)} Q 0 ${(yOffset - arcDrop).toFixed(2)} ${hw.toFixed(2)} ${yOffset.toFixed(2)}"/>\n`;
+                } else {
+                    // Radius too small for this width - use a fallback flat line
+                    console.warn(`Fretboard radius (${radius}mm) is smaller than half-width (${hw}mm). Using flat reference line.`);
+                    svg += `    <line class="reference" x1="${(-hw).toFixed(2)}" y1="${yOffset.toFixed(2)}" x2="${hw.toFixed(2)}" y2="${yOffset.toFixed(2)}"/>\n`;
+                }
+            }
         });
 
         svg += `  </g>\n</svg>`;
@@ -1045,7 +1143,11 @@
 
     function renderSidebar() {
         const sidebar = document.getElementById('sidebar');
-        
+        if (!sidebar) {
+            console.error('Sidebar element not found');
+            return;
+        }
+
         sidebar.innerHTML = `
             <div class="logo">
                 <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
@@ -1166,9 +1268,29 @@
     }
 
     function handleParamChange(e) {
+        if (!e || !e.target) {
+            console.error('Invalid event in handleParamChange');
+            return;
+        }
+
         const id = e.target.id;
-        const value = e.target.type === 'checkbox' ? e.target.checked : 
-                      e.target.type === 'number' ? parseFloat(e.target.value) : e.target.value;
+        if (!id) {
+            return; // Ignore elements without IDs
+        }
+
+        let value;
+        if (e.target.type === 'checkbox') {
+            value = e.target.checked;
+        } else if (e.target.type === 'number') {
+            const parsed = parseFloat(e.target.value);
+            if (isNaN(parsed)) {
+                console.warn(`Invalid number value for ${id}: "${e.target.value}"`);
+                return; // Don't update with NaN values
+            }
+            value = parsed;
+        } else {
+            value = e.target.value;
+        }
 
         // Update spec
         const mappings = {
@@ -1208,17 +1330,41 @@
     }
 
     function updateFretTable() {
-        const frets = allFretPositions(spec.fretboard.scale_length, spec.fretboard.num_frets);
+        const fretTableEl = document.getElementById('fret-table');
+        if (!fretTableEl) {
+            console.warn('Fret table element not found');
+            return;
+        }
+
+        let frets;
+        try {
+            frets = allFretPositions(spec.fretboard.scale_length, spec.fretboard.num_frets);
+        } catch (e) {
+            console.error('Error calculating fret positions:', e.message);
+            fretTableEl.innerHTML = `<h3>Fret Positions</h3><p style="color: var(--accent);">Error: ${e.message}</p>`;
+            return;
+        }
+
+        if (!frets || frets.length === 0) {
+            fretTableEl.innerHTML = '<h3>Fret Positions</h3><p>No fret positions available</p>';
+            return;
+        }
+
         let html = `<h3>Fret Positions</h3><table>
             <tr><th>Fret</th><th>From Nut</th><th>Remaining</th></tr>`;
-        
+
         frets.forEach(({ fret, position }) => {
-            const remaining = (spec.fretboard.scale_length - position).toFixed(2);
-            html += `<tr><td>${fret}</td><td>${position.toFixed(2)} mm</td><td>${remaining} mm</td></tr>`;
+            const remaining = spec.fretboard.scale_length - position;
+            // Validate remaining distance is not negative
+            const remainingDisplay = remaining >= 0 ? remaining.toFixed(2) : '0.00';
+            if (remaining < 0) {
+                console.warn(`Fret ${fret} position (${position}mm) exceeds scale length (${spec.fretboard.scale_length}mm)`);
+            }
+            html += `<tr><td>${fret}</td><td>${position.toFixed(2)} mm</td><td>${remainingDisplay} mm</td></tr>`;
         });
-        
+
         html += '</table>';
-        document.getElementById('fret-table').innerHTML = html;
+        fretTableEl.innerHTML = html;
     }
 
     function renderTabs() {
@@ -1242,15 +1388,45 @@
     }
 
     function updatePreview() {
-        let svg;
-        switch (activeTab) {
-            case 'fretboard': svg = generateFretboardSVG(); break;
-            case 'body_top': svg = generateBodySVG('top'); break;
-            case 'body_back': svg = generateBodySVG('back'); break;
-            case 'neck': svg = generateNeckProfileSVG(); break;
-            case 'headstock': svg = generateHeadstockSVG(); break;
+        const previewContainer = document.getElementById('preview-container');
+        if (!previewContainer) {
+            console.error('Preview container element not found');
+            return;
         }
-        document.getElementById('preview-container').innerHTML = svg;
+
+        let svg;
+        try {
+            switch (activeTab) {
+                case 'fretboard':
+                    svg = generateFretboardSVG();
+                    break;
+                case 'body_top':
+                    svg = generateBodySVG('top');
+                    break;
+                case 'body_back':
+                    svg = generateBodySVG('back');
+                    break;
+                case 'neck':
+                    svg = generateNeckProfileSVG();
+                    break;
+                case 'headstock':
+                    svg = generateHeadstockSVG();
+                    break;
+                default:
+                    console.warn(`Unknown tab: ${activeTab}, defaulting to fretboard`);
+                    svg = generateFretboardSVG();
+                    break;
+            }
+        } catch (e) {
+            console.error('Error generating SVG:', e.message);
+            svg = `<svg width="400" height="100"><text x="10" y="50" fill="red">Error generating preview: ${e.message}</text></svg>`;
+        }
+
+        if (svg) {
+            previewContainer.innerHTML = svg;
+        } else {
+            previewContainer.innerHTML = '<svg width="400" height="100"><text x="10" y="50" fill="red">Error: No SVG generated</text></svg>';
+        }
     }
 
     // ============================================================
@@ -1299,24 +1475,84 @@
     }
 
     async function downloadAll() {
+        const SCRIPT_LOAD_TIMEOUT = 10000; // 10 seconds timeout
+
         // Dynamic import of JSZip from CDN
         if (typeof JSZip === 'undefined') {
-            const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-            document.head.appendChild(script);
-            await new Promise(resolve => script.onload = resolve);
+            try {
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+
+                const loadPromise = new Promise((resolve, reject) => {
+                    script.onload = resolve;
+                    script.onerror = () => reject(new Error('Failed to load JSZip library from CDN'));
+                });
+
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('Timeout loading JSZip library')), SCRIPT_LOAD_TIMEOUT);
+                });
+
+                document.head.appendChild(script);
+
+                await Promise.race([loadPromise, timeoutPromise]);
+
+                // Verify JSZip is now available
+                if (typeof JSZip === 'undefined') {
+                    throw new Error('JSZip library failed to initialize');
+                }
+            } catch (e) {
+                console.error('Error loading JSZip:', e.message);
+                alert(`Failed to download ZIP: ${e.message}. Please try downloading files individually.`);
+                return;
+            }
         }
 
-        const zip = new JSZip();
-        zip.file('stratocaster_fretboard.svg', generateFretboardSVG());
-        zip.file('stratocaster_body_top.svg', generateBodySVG('top'));
-        zip.file('stratocaster_body_back.svg', generateBodySVG('back'));
-        zip.file('stratocaster_neck_profiles.svg', generateNeckProfileSVG());
-        zip.file('stratocaster_headstock.svg', generateHeadstockSVG());
-        zip.file('stratocaster_spec.json', generateSpecJSON());
+        try {
+            const zip = new JSZip();
 
-        const content = await zip.generateAsync({ type: 'blob' });
-        downloadBlob(content, 'stratocaster_templates.zip', 'application/zip');
+            // Generate and add files with error handling
+            try {
+                zip.file('stratocaster_fretboard.svg', generateFretboardSVG());
+            } catch (e) {
+                console.error('Error generating fretboard SVG:', e.message);
+            }
+
+            try {
+                zip.file('stratocaster_body_top.svg', generateBodySVG('top'));
+            } catch (e) {
+                console.error('Error generating body top SVG:', e.message);
+            }
+
+            try {
+                zip.file('stratocaster_body_back.svg', generateBodySVG('back'));
+            } catch (e) {
+                console.error('Error generating body back SVG:', e.message);
+            }
+
+            try {
+                zip.file('stratocaster_neck_profiles.svg', generateNeckProfileSVG());
+            } catch (e) {
+                console.error('Error generating neck profile SVG:', e.message);
+            }
+
+            try {
+                zip.file('stratocaster_headstock.svg', generateHeadstockSVG());
+            } catch (e) {
+                console.error('Error generating headstock SVG:', e.message);
+            }
+
+            try {
+                zip.file('stratocaster_spec.json', generateSpecJSON());
+            } catch (e) {
+                console.error('Error generating spec JSON:', e.message);
+            }
+
+            const content = await zip.generateAsync({ type: 'blob' });
+            downloadBlob(content, 'stratocaster_templates.zip', 'application/zip');
+        } catch (e) {
+            console.error('Error creating ZIP file:', e.message);
+            alert(`Failed to create ZIP file: ${e.message}`);
+        }
     }
 
     // ============================================================
