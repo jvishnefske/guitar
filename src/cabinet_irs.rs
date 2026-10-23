@@ -204,7 +204,8 @@ fn create_synthetic_ir(
             libm::expf(-t * 100.0 * (2.0 - body)) * libm::cosf(omega * 0.5 * i as f32) * body * 0.2;
 
         // High frequency detail
-        let hi_detail = libm::expf(-t * 1500.0) * libm::sinf(omega * 2.0 * i as f32) * brightness * 0.1;
+        let hi_detail =
+            libm::expf(-t * 1500.0) * libm::sinf(omega * 2.0 * i as f32) * brightness * 0.1;
 
         *sample = transient + resonance + low_body + hi_detail;
     }
@@ -282,7 +283,10 @@ mod tests {
     #[test]
     fn test_ir_1x12_american_normalized() {
         let ir = ir_1x12_american();
-        let sum: f32 = ir.samples[..ir.length].iter().map(|s| libm::fabsf(*s)).sum();
+        let sum: f32 = ir.samples[..ir.length]
+            .iter()
+            .map(|s| libm::fabsf(*s))
+            .sum();
         assert!(
             approx_eq(sum, 1.0, 0.05),
             "1x12_american should be normalized: sum = {}",
@@ -293,7 +297,10 @@ mod tests {
     #[test]
     fn test_ir_2x12_british_normalized() {
         let ir = ir_2x12_british();
-        let sum: f32 = ir.samples[..ir.length].iter().map(|s| libm::fabsf(*s)).sum();
+        let sum: f32 = ir.samples[..ir.length]
+            .iter()
+            .map(|s| libm::fabsf(*s))
+            .sum();
         assert!(
             approx_eq(sum, 1.0, 0.05),
             "2x12_british should be normalized: sum = {}",
@@ -304,7 +311,10 @@ mod tests {
     #[test]
     fn test_ir_4x12_heavy_normalized() {
         let ir = ir_4x12_heavy();
-        let sum: f32 = ir.samples[..ir.length].iter().map(|s| libm::fabsf(*s)).sum();
+        let sum: f32 = ir.samples[..ir.length]
+            .iter()
+            .map(|s| libm::fabsf(*s))
+            .sum();
         assert!(
             approx_eq(sum, 1.0, 0.05),
             "4x12_heavy should be normalized: sum = {}",
@@ -315,7 +325,10 @@ mod tests {
     #[test]
     fn test_ir_1x10_vintage_normalized() {
         let ir = ir_1x10_vintage();
-        let sum: f32 = ir.samples[..ir.length].iter().map(|s| libm::fabsf(*s)).sum();
+        let sum: f32 = ir.samples[..ir.length]
+            .iter()
+            .map(|s| libm::fabsf(*s))
+            .sum();
         assert!(
             approx_eq(sum, 1.0, 0.05),
             "1x10_vintage should be normalized: sum = {}",

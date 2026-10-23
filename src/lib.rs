@@ -9,13 +9,13 @@ pub mod biquad;
 pub mod dsp_math;
 
 // Signal chain blocks (Wave 2-4)
+pub mod cabinet;
+pub mod cabinet_irs;
 pub mod input;
 pub mod input_filter;
 pub mod output;
-pub mod preamp;
 pub mod poweramp;
-pub mod cabinet;
-pub mod cabinet_irs;
+pub mod preamp;
 pub mod tonestack;
 
 // Preset system (Wave 5)

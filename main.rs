@@ -22,8 +22,8 @@ use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_svc::log::EspLogger;
 use esp_idf_svc::sys as esp_idf_sys;
 
-use guitar_amp_dsp::signal_chain::SignalChain;
 use guitar_amp_dsp::preset::{self, AmpPreset};
+use guitar_amp_dsp::signal_chain::SignalChain;
 
 // Global allocator
 #[global_allocator]
@@ -128,7 +128,10 @@ fn demo_dsp_processing(chain: &mut SignalChain) {
 
     log::info!("  Input RMS: {:.4}", input_rms);
     log::info!("  Output RMS: {:.4}", output_rms);
-    log::info!("  Gain: {:.2} dB", 20.0 * libm::log10f(output_rms / input_rms.max(0.0001)));
+    log::info!(
+        "  Gain: {:.2} dB",
+        20.0 * libm::log10f(output_rms / input_rms.max(0.0001))
+    );
 
     // Test all presets
     log::info!("Testing all presets:");
@@ -167,7 +170,10 @@ fn print_system_info() {
             log::info!("  ESP-IDF: {:?}", version);
         }
 
-        log::info!("  Free heap: {} bytes", esp_idf_sys::esp_get_free_heap_size());
+        log::info!(
+            "  Free heap: {} bytes",
+            esp_idf_sys::esp_get_free_heap_size()
+        );
     }
 }
 

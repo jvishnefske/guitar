@@ -523,6 +523,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::clone_on_copy)] // intentionally exercises the Clone impl
     fn test_copy_derive() {
         let input_stage = InputStage::new(48000.0);
         let _copy = input_stage; // Copy should work due to derive

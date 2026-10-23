@@ -712,7 +712,7 @@ mod tests {
     fn test_recto_heavy_fender_stack_scooped() {
         assert_eq!(RECTO_HEAVY.tone_stack_type, ToneStackType::Fender);
         // Verify scooped mids
-        assert!(RECTO_HEAVY.mid < 0.5, "Recto should have scooped mids");
+        const { assert!(RECTO_HEAVY.mid < 0.5, "Recto should have scooped mids") };
     }
 
     // -------------------------------------------------------------------------
@@ -921,6 +921,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::clone_on_copy)] // intentionally exercises the Clone impl
     fn test_preset_clone() {
         let preset = PLEXI_CRUNCH;
         let cloned = preset.clone();
