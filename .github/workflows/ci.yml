@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+# Scope: the `guitar-amp-dsp` library (default `std` feature on the host, and
+# `--no-default-features` no_std on a bare-metal target). The ESP32 binary
+# (`main.rs`, feature `esp32`) needs the Xtensa ESP-IDF toolchain and is not
+# built here.
+jobs:
+  test:
+    name: fmt / clippy / test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Test
+        run: cargo test --locked
+
+  no_std:
+    name: no_std build (thumbv7em-none-eabihf)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+
+      # Proves the DSP library stays free of std when the feature is off.
+      - name: Clippy (no_std)
+        run: cargo clippy --locked --lib --no-default-features --target thumbv7em-none-eabihf -- -D warnings
+
+      - name: Build (no_std)
+        run: cargo build --locked --lib --no-default-features --target thumbv7em-none-eabihf --release
+
+  coverage:
+    name: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      # Threshold sits just below the measured baseline (99.1% lines).
+      - name: Coverage
+        run: cargo llvm-cov --locked --lcov --output-path lcov.info --fail-under-lines 99
+
+      - name: Coverage summary
+        if: always()
+        run: cargo llvm-cov report --summary-only
+
+      - name: Upload lcov report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcov
+          path: lcov.info
+          if-no-files-found: ignore
