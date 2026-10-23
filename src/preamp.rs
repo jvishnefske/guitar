@@ -760,13 +760,21 @@ mod tests {
         assert!(approx_eq(params.gain, MAX_GAIN, EPSILON));
         assert!(approx_eq(params.asymmetry, MAX_ASYMMETRY, EPSILON));
         assert!(approx_eq(params.coupling_fc, MAX_COUPLING_FC, EPSILON));
-        assert!(approx_eq(params.grid_threshold, MIN_GRID_THRESHOLD, EPSILON));
+        assert!(approx_eq(
+            params.grid_threshold,
+            MIN_GRID_THRESHOLD,
+            EPSILON
+        ));
 
         let params2 = StageParams::new(0.0, -1.0, 0.0, 2.0);
         assert!(approx_eq(params2.gain, MIN_GAIN, EPSILON));
         assert!(approx_eq(params2.asymmetry, MIN_ASYMMETRY, EPSILON));
         assert!(approx_eq(params2.coupling_fc, MIN_COUPLING_FC, EPSILON));
-        assert!(approx_eq(params2.grid_threshold, MAX_GRID_THRESHOLD, EPSILON));
+        assert!(approx_eq(
+            params2.grid_threshold,
+            MAX_GRID_THRESHOLD,
+            EPSILON
+        ));
     }
 
     #[test]

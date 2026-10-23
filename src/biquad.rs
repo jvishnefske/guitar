@@ -997,7 +997,11 @@ mod tests {
             let input = if i % 2 == 0 { 1.0 } else { -1.0 };
             let output = filter.process_sample(input);
 
-            assert!(output.is_finite(), "Output became non-finite at sample {}", i);
+            assert!(
+                output.is_finite(),
+                "Output became non-finite at sample {}",
+                i
+            );
         }
     }
 

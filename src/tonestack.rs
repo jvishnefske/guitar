@@ -106,7 +106,6 @@ pub enum ToneStackType {
     Bypassed,
 }
 
-
 /// Tone stack control values (0.0 to 1.0).
 ///
 /// Each control represents the position of a rotary knob:
@@ -496,7 +495,9 @@ impl ToneStack {
     pub fn magnitude_response(&self, freq: f32) -> f32 {
         let bass_mag = self.bass_filter.magnitude_response(freq, self.sample_rate);
         let mid_mag = self.mid_filter.magnitude_response(freq, self.sample_rate);
-        let treble_mag = self.treble_filter.magnitude_response(freq, self.sample_rate);
+        let treble_mag = self
+            .treble_filter
+            .magnitude_response(freq, self.sample_rate);
         bass_mag * mid_mag * treble_mag
     }
 
@@ -898,7 +899,10 @@ mod tests {
         let treble_response = stack.magnitude_response(5000.0);
 
         // Bass should be boosted, treble should be near unity
-        assert!(bass_response > 2.0, "Max bass should boost lows significantly");
+        assert!(
+            bass_response > 2.0,
+            "Max bass should boost lows significantly"
+        );
         assert!(
             treble_response > 0.8 && treble_response < 1.2,
             "Treble should be near unity with only bass boosted"

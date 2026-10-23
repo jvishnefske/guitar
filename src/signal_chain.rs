@@ -196,7 +196,8 @@ impl SignalChain {
         });
 
         // Cabinet IR selection
-        self.cabinet.set_ir(cabinet_ir_by_index(preset.cabinet_ir_index));
+        self.cabinet
+            .set_ir(cabinet_ir_by_index(preset.cabinet_ir_index));
 
         // Output master volume
         self.output.set_volume_db(preset.master_volume_db);
@@ -348,8 +349,8 @@ impl SignalChain {
 mod tests {
     use super::*;
     use crate::preset::{
-        all_presets, preset_by_name, AC30_CHIME, BRIT_HIGH, CLEAN_TWIN, PLEXI_CRUNCH,
-        RECTO_HEAVY, TWEED_DELUXE,
+        all_presets, preset_by_name, AC30_CHIME, BRIT_HIGH, CLEAN_TWIN, PLEXI_CRUNCH, RECTO_HEAVY,
+        TWEED_DELUXE,
     };
 
     /// Tolerance for floating-point comparisons.
@@ -767,11 +768,7 @@ mod tests {
 
             assert!(output.is_finite(), "Output should be finite");
             // Output should be bounded due to soft clipping
-            assert!(
-                output.abs() <= 1.0,
-                "Output should be bounded: {}",
-                output
-            );
+            assert!(output.abs() <= 1.0, "Output should be bounded: {}", output);
         }
     }
 
@@ -962,11 +959,7 @@ mod tests {
             let output = chain.process_sample(input);
 
             assert!(output.is_finite(), "Output should be finite");
-            assert!(
-                output.abs() <= 1.0,
-                "Output should be bounded: {}",
-                output
-            );
+            assert!(output.abs() <= 1.0, "Output should be bounded: {}", output);
         }
     }
 }

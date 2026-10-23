@@ -446,7 +446,10 @@ mod tests {
 
         let output = crossover_model(input, dead_zone);
 
-        assert!(approx_eq(output, 0.0, EPSILON), "Zero in should be zero out");
+        assert!(
+            approx_eq(output, 0.0, EPSILON),
+            "Zero in should be zero out"
+        );
     }
 
     // ========================================================================
@@ -602,8 +605,8 @@ mod tests {
         let params = PowerAmpParams {
             crossover_amount: 0.05,
             sag_depth: 0.5,
-            sag_attack_ms: 5.0,   // Below minimum (10)
-            sag_release_ms: 600.0, // Above maximum (500)
+            sag_attack_ms: 5.0,     // Below minimum (10)
+            sag_release_ms: 600.0,  // Above maximum (500)
             transformer_fc: 3000.0, // Below minimum (4000)
         };
         let amp = PowerAmp::with_params(params, SAMPLE_RATE);
@@ -779,15 +782,15 @@ mod tests {
         // Verify outputs are reasonable
         for output in &outputs {
             assert!(output.is_finite(), "Output should be finite");
-            assert!(
-                output.abs() <= 1.0,
-                "Output should be bounded: {}",
-                output
-            );
+            assert!(output.abs() <= 1.0, "Output should be bounded: {}", output);
         }
 
         // Verify some processing actually happened (not all zeros)
         let max_output = outputs.iter().fold(0.0f32, |a, &b| a.max(b.abs()));
-        assert!(max_output > 0.1, "Output should have content: {}", max_output);
+        assert!(
+            max_output > 0.1,
+            "Output should have content: {}",
+            max_output
+        );
     }
 }

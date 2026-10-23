@@ -761,7 +761,11 @@ mod tests {
             let input = if i % 100 == 0 { 1.0 } else { 0.0 };
             let output = cabinet.process_sample(input);
             // Just ensure no panic and output is finite
-            assert!(output.is_finite(), "Output should be finite at sample {}", i);
+            assert!(
+                output.is_finite(),
+                "Output should be finite at sample {}",
+                i
+            );
         }
     }
 
